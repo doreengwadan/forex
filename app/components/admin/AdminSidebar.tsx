@@ -27,10 +27,10 @@ const adminNavItems = [
   { name: 'Signals', href: '/admin/signals', icon: TrendingUp },
   { name: 'Payments', href: '/admin/payments', icon: CreditCard },
   { name: 'Mentors', href: '/admin/mentors', icon: CreditCard },
-  { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
+  
   { name: 'Reports', href: '/admin/Reports', icon: FileText },
   { name: 'Settings', href: '/admin/security', icon: Settings },
-  { name: 'Security', href: '#', icon: Shield },
+
 ]
 
 export default function AdminSidebar() {

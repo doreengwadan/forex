@@ -25,6 +25,7 @@ import {
   Calendar,
   Wifi,
   WifiOff,
+  ArrowLeft,
 } from 'lucide-react';
 import { getEcho } from '../../lib/echo'; // Now configured for Reverb
 
@@ -101,6 +102,15 @@ export default function ChatPage() {
 
   // Demo mode fallback
   const [useDemoMode, setUseDemoMode] = useState(false);
+
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Echo instance reference
   const echoRef = useRef<any>(null);
@@ -402,6 +412,7 @@ export default function ChatPage() {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: JSON.stringify({
           mentor_id: selectedConversation.mentor.id,
@@ -703,16 +714,7 @@ export default function ChatPage() {
               )}
             </Badge>
 
-            <Button
-              onClick={refreshConversations}
-              variant="outline"
-              size="sm"
-              className="bg-white/50 backdrop-blur-sm"
-              disabled={isLoading}
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+            
           </div>
         </div>
 
@@ -726,8 +728,15 @@ export default function ChatPage() {
 
         {/* Chat Container */}
         <div className="grid lg:grid-cols-12 gap-6 h-[calc(100vh-12rem)]">
-          {/* Sidebar */}
-          <Card className="lg:col-span-4 border-0 shadow-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm flex flex-col overflow-hidden">
+          {/* Sidebar Card - hidden on mobile when a conversation is selected */}
+          <Card
+            className={`
+              border-0 shadow-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm
+              flex flex-col overflow-hidden
+              lg:col-span-4
+              ${isMobile && selectedConversation ? 'hidden' : 'block'}
+            `}
+          >
             <CardHeader className="border-b border-gray-200 dark:border-gray-700 pb-4">
               <div className="flex items-center justify-between mb-3">
                 <CardTitle className="text-lg">
@@ -940,14 +949,32 @@ export default function ChatPage() {
             </CardContent>
           </Card>
 
-          {/* Chat Window */}
-          <Card className="lg:col-span-8 border-0 shadow-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm flex flex-col overflow-hidden">
+          {/* Chat Window Card - hidden on mobile when no conversation selected */}
+          <Card
+            className={`
+              border-0 shadow-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm
+              flex flex-col overflow-hidden
+              lg:col-span-8
+              ${isMobile && !selectedConversation ? 'hidden' : 'block'}
+            `}
+          >
             {selectedConversation ? (
               <>
                 {/* Chat Header */}
                 <CardHeader className="border-b border-gray-200 dark:border-gray-700 py-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
+                      {/* Back button for mobile */}
+                      {isMobile && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setSelectedConversation(null)}
+                          className="mr-1"
+                        >
+                          <ArrowLeft className="w-5 h-5" />
+                        </Button>
+                      )}
                       <div className="relative">
                         <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
                           {selectedConversation.mentor.profile_image ? (

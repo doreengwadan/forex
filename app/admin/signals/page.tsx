@@ -59,7 +59,7 @@ interface Signal {
   category: string
   subscribers: number
   risk_level: 'Low' | 'Medium' | 'High'
-  profit_loss?: string | null // Make optional to handle null
+  profit_loss?: string | null
   pips: string
   confidence: string
   analysis?: string
@@ -81,7 +81,6 @@ interface SignalStats {
   avg_profit: number
 }
 
-// Default stats to prevent null errors
 const defaultStats: SignalStats = {
   total_signals: 0,
   active_signals: 0,
@@ -157,139 +156,132 @@ export default function AdminSignalsPage() {
   }
 
   // Fetch signals from API
-  const fetchSignals = async () => {
-    try {
-      const token = getToken()
-      
-      if (!token) {
-        setError('No authentication token found. Please login again.')
-        return []
-      }
-
-      if (!checkAdminAccess()) {
-        setError('Admin access required. You do not have sufficient permissions.')
-        return []
-      }
-
-      const response = await fetch('http://localhost:8000/api/admin/signals', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        credentials: 'include'
-      })
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          setError('Session expired. Please login again.')
-          localStorage.removeItem('auth_token')
-          localStorage.removeItem('user_data')
-          localStorage.removeItem('user_role')
-          setTimeout(() => {
-            window.location.href = '/admin/login'
-          }, 2000)
-          return []
-        }
-        
-        if (response.status === 403) {
-          setError('Access denied. Admin privileges required.')
-          return []
-        }
-        
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `Failed to fetch signals: ${response.statusText}`)
-      }
-
-      const data = await response.json()
-      
-      if (data.success && data.signals) {
-        // Ensure all signals have profit_loss value
-        return data.signals.map((signal: Signal) => ({
-          ...signal,
-          profit_loss: signal.profit_loss || '0.0%' // Default value if null
-        }))
-      } else {
-        throw new Error(data.message || 'Failed to fetch signals')
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
-      setError(errorMessage)
-      console.error('Error fetching signals:', err)
+  // Fetch signals from API
+const fetchSignals = async () => {
+  try {
+    const token = getToken()
+    
+    if (!token) {
+      setError('No authentication token found. Please login again.')
       return []
     }
-  }
 
-  // Fetch signal statistics
-  const fetchSignalStats = async (): Promise<SignalStats> => {
-    try {
-      const token = getToken()
+    if (!checkAdminAccess()) {
+      setError('Admin access required. You do not have sufficient permissions.')
+      return []
+    }
+
+    const response = await fetch('http://localhost:8000/api/admin/signals', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      credentials: 'include'
+    })
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        setError('Session expired. Please login again.')
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('user_data')
+        localStorage.removeItem('user_role')
+        setTimeout(() => {
+          window.location.href = '/admin/login'
+        }, 2000)
+        return []
+      }
       
-      if (!token) {
-        return defaultStats
+      if (response.status === 403) {
+        setError('Access denied. Admin privileges required.')
+        return []
       }
+      
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.message || `Failed to fetch signals: ${response.statusText}`)
+    }
 
-      const response = await fetch('http://localhost:8000/api/admin/signals/stats', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        credentials: 'include'
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success && data.stats) {
-          return data.stats
-        }
-      }
-      return defaultStats
-    } catch (err) {
-      console.error('Error fetching signal stats:', err)
+    const data = await response.json()
+    
+    // FIX: Check for the correct data structure
+    if (data.success && data.signals) {
+      // Map the data to match your frontend interface
+      return data.signals.map((signal: any) => ({
+        id: signal.id,
+        asset: signal.asset,
+        type: signal.type.toUpperCase(), // Ensure uppercase
+        entry_price: parseFloat(signal.entry_price),
+        target_price: parseFloat(signal.target_price),
+        stop_loss: parseFloat(signal.stop_loss),
+        timeframe: signal.timeframe,
+        status: signal.status,
+        category: signal.category,
+        subscribers: signal.subscribers || 0,
+        risk_level: signal.risk_level,
+        profit_loss: signal.profit_loss || '0.0%',
+        pips: signal.pips || '0',
+        confidence: signal.confidence || '85%',
+        analysis: signal.analysis || '',
+        priority: signal.priority || 'normal',
+        push_notifications: signal.push_notifications || false,
+        email_alerts: signal.email_alerts || false,
+        sent_at: signal.sent_at || signal.created_at,
+        created_at: signal.created_at,
+        updated_at: signal.updated_at
+      }))
+    } else {
+      // If the response structure is different, log it for debugging
+      console.error('Unexpected API response structure:', data)
+      throw new Error(data.message || 'Failed to fetch signals')
+    }
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+    setError(errorMessage)
+    console.error('Error fetching signals:', err)
+    return []
+  }
+}
+  // Fetch signal statistics
+  // Fetch signal statistics
+const fetchSignalStats = async (): Promise<SignalStats> => {
+  try {
+    const token = getToken()
+    
+    if (!token) {
       return defaultStats
     }
-  }
 
-  // Create new signal
-  const createSignal = async (signalData: any) => {
-    try {
-      const token = getToken()
-      
-      if (!token) {
-        throw new Error('No authentication token found')
-      }
+    const response = await fetch('http://localhost:8000/api/admin/signals/stats', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      credentials: 'include'
+    })
 
-      const response = await fetch('http://localhost:8000/api/admin/signals', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(signalData),
-        credentials: 'include'
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to create signal: ${response.statusText}`)
-      }
-
+    if (response.ok) {
       const data = await response.json()
       
-      if (data.success) {
-        return { success: true, message: data.message }
-      } else {
-        throw new Error(data.message || 'Failed to create signal')
-      }
-    } catch (err) {
-      return { 
-        success: false, 
-        message: err instanceof Error ? err.message : 'Failed to create signal' 
+      // FIX: Check for the correct data structure
+      if (data.success && data.stats) {
+        return {
+          total_signals: data.stats.total_signals || 0,
+          active_signals: data.stats.active_signals || 0,
+          completed_signals: data.stats.completed_signals || 0,
+          pending_signals: data.stats.pending_signals || 0,
+          total_subscribers: data.stats.total_subscribers || 0,
+          success_rate: data.stats.success_rate || 0,
+          avg_profit: data.stats.avg_profit || 0
+        }
       }
     }
+    return defaultStats
+  } catch (err) {
+    console.error('Error fetching signal stats:', err)
+    return defaultStats
   }
-
+}
   // Update signal
   const updateSignal = async (id: number, signalData: any) => {
     try {
@@ -459,7 +451,6 @@ export default function AdminSignalsPage() {
 
   const handleEditSignal = (signal: Signal) => {
     setSelectedSignal(signal)
-    // Pre-fill form with existing signal data
     setNewSignalForm({
       asset: signal.asset,
       type: signal.type,
@@ -490,9 +481,7 @@ export default function AdminSignalsPage() {
     if (selectedSignal) {
       const result = await deleteSignal(selectedSignal.id)
       if (result.success) {
-        // Remove from local state
         setSignals(prev => prev.filter(s => s.id !== selectedSignal.id))
-        // Refresh stats
         const newStats = await fetchSignalStats()
         setStats(newStats)
         setShowDeleteModal(false)
@@ -531,11 +520,9 @@ export default function AdminSignalsPage() {
     }
     
     if (result.success) {
-      // Refresh data
       await handleRefresh()
       setShowSendModal(false)
       setSelectedSignal(null)
-      // Reset form
       setNewSignalForm({
         asset: '',
         type: 'BUY',
@@ -584,9 +571,8 @@ export default function AdminSignalsPage() {
     }
   }
 
-  // FIXED: Handle null/undefined profit_loss values
   const getProfitLossColor = (pl: string | null | undefined) => {
-    if (!pl) return 'text-gray-600' // Handle null/undefined
+    if (!pl) return 'text-gray-600'
     if (pl.startsWith('+')) return 'text-emerald-600 font-bold'
     if (pl.startsWith('-')) return 'text-rose-600 font-bold'
     return 'text-gray-600'
@@ -659,15 +645,6 @@ export default function AdminSignalsPage() {
           <p className="text-gray-600 mt-2">Real-time trading insights and signal management</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button 
-            variant="outline" 
-            className="gap-2 border-2 border-gray-300 hover:border-indigo-400 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 hover:text-indigo-700 transition-all duration-300 group"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''} group-hover:rotate-180 transition-transform duration-300`} />
-            Refresh
-          </Button>
           <Button 
             className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5 group"
             onClick={handleSendSignal}
@@ -791,7 +768,7 @@ export default function AdminSignalsPage() {
                 <Input
                   id="search"
                   placeholder="BTC, EUR, AAPL..."
-                  value={searchQuery}
+                  value={searchQuery ?? ''}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9 border-2 border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 transition-all"
                 />
@@ -844,14 +821,6 @@ export default function AdminSignalsPage() {
                 <Button variant="outline" className="w-full justify-start gap-2 border-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-700 transition-all">
                   <Download className="w-4 h-4" />
                   Export Signals
-                </Button>
-                <Button variant="outline" className="w-full justify-start gap-2 border-2 border-gray-300 hover:border-purple-500 hover:bg-purple-50 hover:text-purple-700 transition-all">
-                  <Copy className="w-4 h-4" />
-                  Copy Template
-                </Button>
-                <Button variant="outline" className="w-full justify-start gap-2 border-2 border-gray-300 hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 transition-all">
-                  <Eye className="w-4 h-4" />
-                  Preview Signals
                 </Button>
               </div>
             </div>
@@ -982,7 +951,6 @@ export default function AdminSignalsPage() {
                         </div>
                       </td>
                       <td className="py-5 px-6">
-                        {/* FIXED: Handle null/undefined profit_loss */}
                         <div className={`text-xl font-bold ${getProfitLossColor(signal.profit_loss)}`}>
                           {signal.profit_loss || '0.0%'}
                         </div>
@@ -1071,7 +1039,7 @@ export default function AdminSignalsPage() {
                   <Input 
                     id="asset" 
                     placeholder="BTC/USD" 
-                    value={newSignalForm.asset}
+                    value={newSignalForm.asset ?? ''}
                     onChange={(e) => setNewSignalForm({...newSignalForm, asset: e.target.value})}
                     className="border-2 border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
                   />
@@ -1143,7 +1111,7 @@ export default function AdminSignalsPage() {
                   <Input 
                     id="entry" 
                     placeholder="0.00" 
-                    value={newSignalForm.entry_price}
+                    value={newSignalForm.entry_price ?? ''}
                     onChange={(e) => setNewSignalForm({...newSignalForm, entry_price: e.target.value})}
                     className="border-2 border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
                   />
@@ -1153,7 +1121,7 @@ export default function AdminSignalsPage() {
                   <Input 
                     id="target" 
                     placeholder="0.00" 
-                    value={newSignalForm.target_price}
+                    value={newSignalForm.target_price ?? ''}
                     onChange={(e) => setNewSignalForm({...newSignalForm, target_price: e.target.value})}
                     className="border-2 border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
                   />
@@ -1163,7 +1131,7 @@ export default function AdminSignalsPage() {
                   <Input 
                     id="stopLoss" 
                     placeholder="0.00" 
-                    value={newSignalForm.stop_loss}
+                    value={newSignalForm.stop_loss ?? ''}
                     onChange={(e) => setNewSignalForm({...newSignalForm, stop_loss: e.target.value})}
                     className="border-2 border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
                   />
@@ -1218,7 +1186,7 @@ export default function AdminSignalsPage() {
                   <Input 
                     id="pips" 
                     placeholder="+100" 
-                    value={newSignalForm.pips}
+                    value={newSignalForm.pips ?? ''}
                     onChange={(e) => setNewSignalForm({...newSignalForm, pips: e.target.value})}
                     className="border-2 border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
                   />
@@ -1248,7 +1216,7 @@ export default function AdminSignalsPage() {
                   id="analysis" 
                   placeholder="Add your analysis, reasoning, and any additional notes..."
                   rows={4}
-                  value={newSignalForm.analysis}
+                  value={newSignalForm.analysis ?? ''}
                   onChange={(e) => setNewSignalForm({...newSignalForm, analysis: e.target.value})}
                   className="border-2 border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
                 />

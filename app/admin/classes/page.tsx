@@ -1288,15 +1288,7 @@ export default function AdminClassesPage() {
           <p className="text-gray-600 mt-2">Manage all live and recorded classes</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={fetchClasses}
-            disabled={isLoading}
-            className="gap-2"
-          >
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            Refresh
-          </Button>
+         
           <Button 
             className="gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-200"
             onClick={() => {

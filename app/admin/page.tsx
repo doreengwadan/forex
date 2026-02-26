@@ -497,15 +497,7 @@ export default function AdminDashboardPage() {
                 <p className="text-gray-600">Platform overview and analytics</p>
               </div>
               <div className="flex flex-wrap gap-3">
-                <Button 
-                  variant="outline" 
-                  className="gap-2"
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                >
-                  <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-                  Refresh
-                </Button>
+              
                 <Select value={timeRange} onValueChange={setTimeRange}>
                   <SelectTrigger className="w-[180px]">
                     <Calendar className="w-4 h-4 mr-2" />

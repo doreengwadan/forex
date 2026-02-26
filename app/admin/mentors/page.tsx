@@ -1074,7 +1074,7 @@ export default function AdminMentorsPage() {
                               <img
                                 className="h-10 w-10 rounded-full object-cover"
                                 src={mentor.profile_image_url || '/images/default-avatar.png'}
-                                alt={mentor.name}
+                                alt={" "}
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
                                   target.src = '/images/default-avatar.png';

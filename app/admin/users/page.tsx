@@ -466,36 +466,7 @@ export default function AdminUsersPage() {
           </div>
           <p className="text-gray-600">Manage all platform users and permissions</p>
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline" className="gap-2">
-            <Download className="w-4 h-4" />
-            Export
-          </Button>
-          <Button 
-            variant="outline" 
-            className="gap-2"
-            onClick={handleRefresh}
-            disabled={refreshing}
-          >
-            {refreshing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4" />
-            )}
-            Refresh
-          </Button>
-          <Button className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600">
-            <UserPlus className="w-4 h-4" />
-            Add User
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={handleLogout}
-            className="text-red-600 border-red-200 hover:bg-red-50"
-          >
-            Logout
-          </Button>
-        </div>
+        
       </div>
 
       {/* Stats Cards */}

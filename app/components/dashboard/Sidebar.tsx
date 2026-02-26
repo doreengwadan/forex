@@ -32,8 +32,6 @@ const navItems = [
   { name: 'Payments', href: '/dashboard/payments', icon: CreditCard },
 ]
 
-
-
 interface UserData {
   id: number;
   name: string;
@@ -49,46 +47,15 @@ export default function DashboardSidebar() {
   const [user, setUser] = useState<UserData | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Get user data from localStorage (where login page stores it)
   useEffect(() => {
     const loadUserData = () => {
       try {
         setLoading(true)
-        
-        // Debug: Check what's in localStorage
-        console.log('=== Checking localStorage ===')
         const userDataString = localStorage.getItem('user_data')
-        const authToken = localStorage.getItem('auth_token')
-        
-        console.log('user_data key exists:', userDataString !== null)
-        console.log('auth_token key exists:', authToken !== null)
-        
         if (userDataString) {
-          console.log('Raw user_data string:', userDataString)
-          
-          try {
-            const userData = JSON.parse(userDataString)
-            console.log('Parsed user data:', userData)
-            console.log('User name found:', userData.name)
-            console.log('User email found:', userData.email)
-            
-            setUser(userData)
-          } catch (parseError) {
-            console.error('Error parsing user_data JSON:', parseError)
-            console.error('Invalid JSON string:', userDataString)
-          }
-        } else {
-          console.warn('No user_data found in localStorage')
-          console.log('All localStorage items:')
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i)
-            console.log(`Key: ${key}, Value: ${localStorage.getItem(key)}`)
-          }
+          setUser(JSON.parse(userDataString))
         }
-        
-        // Also check if we need to fetch from API as fallback
         fetchUserFromAPI()
-        
       } catch (error) {
         console.error('Error loading user data:', error)
       } finally {
@@ -98,122 +65,41 @@ export default function DashboardSidebar() {
 
     const fetchUserFromAPI = async () => {
       try {
-        // Fallback: Try to get user from API if not in localStorage
         const response = await fetch('http://localhost:8000/api/user', {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
           credentials: 'include',
         })
-
         if (response.ok) {
           const userData = await response.json()
-          console.log('User data from API:', userData)
           setUser(userData)
           localStorage.setItem('user_data', JSON.stringify(userData))
-        } else if (response.status === 401) {
-          console.log('API: Not authenticated')
-          // Don't redirect here, let localStorage handle it
         }
       } catch (apiError) {
-        console.error('API fetch error:', apiError)
-        // Network error, continue with localStorage data
+        // fallback to localStorage
       }
     }
 
-    // Load user on mount
     loadUserData()
-    
-    // Also listen for storage changes (if user logs in from another tab)
-    const handleStorageChange = (e: StorageEvent) => {
+    window.addEventListener('storage', (e) => {
       if (e.key === 'user_data') {
-        console.log('Storage changed - user_data updated')
-        if (e.newValue) {
-          try {
-            setUser(JSON.parse(e.newValue))
-          } catch (error) {
-            console.error('Error parsing updated user_data:', error)
-          }
-        } else {
-          setUser(null)
-        }
+        setUser(e.newValue ? JSON.parse(e.newValue) : null)
       }
-    }
-    
-    window.addEventListener('storage', handleStorageChange)
-    
-    // Cleanup
-    return () => {
-      window.removeEventListener('storage', handleStorageChange)
-    }
+    })
+    return () => window.removeEventListener('storage', () => {})
   }, [])
 
   const handleLogout = async () => {
     try {
-      // Call logout API
-      await fetch('http://localhost:8000/api/logout', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      })
+      await fetch('http://localhost:8000/api/logout', { method: 'POST', credentials: 'include' })
     } catch (error) {
       console.error('Logout API error:', error)
     } finally {
-      // Clear ALL auth-related storage
       localStorage.removeItem('user_data')
       localStorage.removeItem('auth_token')
       sessionStorage.clear()
-      
-      // Clear state
-      setUser(null)
-      
-      // Redirect to login
       window.location.href = '/login'
     }
   }
 
-  // Debug button to check localStorage
-  const debugLocalStorage = () => {
-    console.log('=== DEBUG: Current localStorage ===')
-    console.log('user_data:', localStorage.getItem('user_data'))
-    console.log('auth_token:', localStorage.getItem('auth_token'))
-    
-    const userData = localStorage.getItem('user_data')
-    if (userData) {
-      try {
-        const parsed = JSON.parse(userData)
-        console.log('Parsed user_data:', parsed)
-        alert(`Current user: ${parsed.name || 'No name'}\nEmail: ${parsed.email || 'No email'}`)
-      } catch (e) {
-        console.error('Parse error:', e)
-        alert('Error parsing user_data')
-      }
-    } else {
-      alert('No user_data in localStorage')
-    }
-  }
-
-  // Debug button to simulate login (for testing)
-  const simulateLogin = () => {
-    const testUser = {
-      id: 1,
-      name: 'John Trader',
-      email: 'john@example.com',
-      username: 'johntrader',
-      membership_type: 'premium',
-      avatar: null
-    }
-    localStorage.setItem('user_data', JSON.stringify(testUser))
-    setUser(testUser)
-    alert('Test user loaded: John Trader')
-  }
-
-  // Loading state
   if (loading) {
     return (
       <div className="fixed inset-y-0 left-0 z-40 w-64 bg-gradient-to-b from-blue-50 via-white to-indigo-50 border-r border-blue-200">
@@ -228,15 +114,13 @@ export default function DashboardSidebar() {
             </div>
           </div>
         </div>
-     
-      
       </div>
     )
   }
 
   return (
     <>
-      {/* Mobile sidebar toggle */}
+      {/* Mobile toggle button */}
       <div className="lg:hidden fixed top-4 left-4 z-50">
         <Button
           variant="outline"
@@ -244,22 +128,17 @@ export default function DashboardSidebar() {
           onClick={() => setSidebarOpen(!sidebarOpen)}
           className="bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg hover:shadow-xl"
         >
-          {sidebarOpen ? (
-            <X className="w-5 h-5" />
-          ) : (
-            <Menu className="w-5 h-5" />
-          )}
+          {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </Button>
       </div>
 
-      {/* Sidebar for mobile */}
-      <div
-        className={cn(
-          'lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity',
-          sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        )}
-        onClick={() => setSidebarOpen(false)}
-      />
+      {/* Backdrop for mobile */}
+      {sidebarOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
       {/* Sidebar */}
       <div
@@ -280,8 +159,6 @@ export default function DashboardSidebar() {
             <p className="text-xs text-blue-500 font-medium">Trading Platform</p>
           </div>
         </div>
-
-        
 
         {/* Navigation */}
         <nav className="flex-1 p-4 overflow-y-auto">
@@ -310,11 +187,9 @@ export default function DashboardSidebar() {
               )
             })}
           </div>
-
-          
         </nav>
 
-        {/* Premium Banner - Conditionally show based on membership */}
+        {/* Premium Banner – Free user */}
         {(!user?.membership_type || user.membership_type === 'free') && (
           <div className="p-4 border-t border-blue-200">
             <div className="bg-gradient-to-r from-blue-500/10 to-purple-600/10 rounded-xl p-4 border border-blue-300/50">
@@ -337,7 +212,7 @@ export default function DashboardSidebar() {
           </div>
         )}
         
-        {/* Already Premium Banner */}
+        {/* Premium Banner – Premium user */}
         {user?.membership_type === 'premium' && (
           <div className="p-4 border-t border-blue-200">
             <div className="bg-gradient-to-r from-green-500/10 to-emerald-600/10 rounded-xl p-4 border border-green-300/50">
