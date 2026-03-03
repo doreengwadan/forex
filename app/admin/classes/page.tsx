@@ -76,7 +76,62 @@ import {
 import { Textarea } from '../../components/ui/Textarea'
 import { Switch } from '../../components/ui/Switch'
 import { toast } from 'react-hot-toast'
-import { Class, ClassForm, Stats, ClassStatus, ClassType, LearningResource } from '../../types/class'
+
+// Types
+interface Class {
+  id: number
+  title: string
+  instructor: string
+  date: string
+  time: string
+  duration: string
+  maxAttendees: number
+  attendees: number
+  type: 'live' | 'recorded'
+  category: string
+  description: string | null
+  tags: string[]
+  status: 'scheduled' | 'ongoing' | 'completed' | 'cancelled' | 'published'
+  recordingUrl: string | null
+  recordSession?: boolean
+  recordingQuality?: 'low' | 'medium' | 'high'
+  created_at: string
+  updated_at: string
+}
+
+interface ClassForm {
+  title: string
+  instructor: string
+  date: string
+  time: string
+  duration: string
+  maxAttendees: string
+  type: 'live' | 'recorded'
+  category: string
+  description: string
+  tags: string[]
+  recordingUrl: string
+  recordSession: boolean
+  recordingQuality: 'low' | 'medium' | 'high'
+  resources?: any[]
+}
+
+interface Stats {
+  total: number
+  live: number
+  recorded: number
+  upcoming: number
+  participants: number
+}
+
+interface LearningResource {
+  id: number
+  name: string
+  size: number
+  type: string
+  url: string
+  uploadedAt?: string
+}
 
 // Import Agora SDK only on client side
 let AgoraRTC: any = null;
@@ -985,7 +1040,7 @@ export default function AdminClassesPage() {
   }
 
   // Update class status
-  const updateClassStatus = async (id: number, status: ClassStatus) => {
+  const updateClassStatus = async (id: number, status: string) => {
     try {
       const token = localStorage.getItem('auth_token')
       if (!token) {
@@ -1241,8 +1296,8 @@ export default function AdminClassesPage() {
     })
   }
 
-  const getStatusBadge = (status: ClassStatus): string => {
-    const variants: Record<ClassStatus, string> = {
+  const getStatusBadge = (status: string): string => {
+    const variants: Record<string, string> = {
       scheduled: 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white',
       ongoing: 'bg-gradient-to-r from-emerald-500 to-green-500 text-white',
       completed: 'bg-gradient-to-r from-gray-600 to-gray-700 text-white',
@@ -1252,7 +1307,7 @@ export default function AdminClassesPage() {
     return variants[status] || 'bg-gray-100 text-gray-800'
   }
 
-  const getTypeBadge = (type: ClassType): string => {
+  const getTypeBadge = (type: string): string => {
     return type === 'live' 
       ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white' 
       : 'bg-gradient-to-r from-indigo-500 to-blue-600 text-white'
@@ -1288,7 +1343,6 @@ export default function AdminClassesPage() {
           <p className="text-gray-600 mt-2">Manage all live and recorded classes</p>
         </div>
         <div className="flex items-center gap-2">
-         
           <Button 
             className="gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-200"
             onClick={() => {
@@ -1884,7 +1938,7 @@ export default function AdminClassesPage() {
                       <label className="text-sm font-medium text-gray-700">Recording Quality</label>
                       <Select 
                         value={classForm.recordingQuality} 
-                        onValueChange={(value) => setClassForm({...classForm, recordingQuality: value})}
+                        onValueChange={(value) => setClassForm({...classForm, recordingQuality: value as 'low' | 'medium' | 'high'})}
                       >
                         <SelectTrigger className="border-2 border-gray-200">
                           <SelectValue placeholder="Select quality" />
@@ -2034,7 +2088,7 @@ export default function AdminClassesPage() {
                       </div>
                       {/* Students */}
                       {remoteUsers.map(user => (
-                        <div key={user.uid} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
+                        <div key={String(user.uid)} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 bg-gradient-to-r from-gray-500 to-gray-600 rounded-full flex items-center justify-center">
                               <User className="w-4 h-4 text-white" />
@@ -2485,7 +2539,7 @@ export default function AdminClassesPage() {
                       name="type"
                       value="live"
                       checked={classForm.type === 'live'}
-                      onChange={(e) => setClassForm({...classForm, type: e.target.value as ClassType})}
+                      onChange={(e) => setClassForm({...classForm, type: e.target.value as 'live' | 'recorded'})}
                       className="sr-only"
                       disabled={isSubmitting}
                     />
@@ -2505,7 +2559,7 @@ export default function AdminClassesPage() {
                       name="type"
                       value="recorded"
                       checked={classForm.type === 'recorded'}
-                      onChange={(e) => setClassForm({...classForm, type: e.target.value as ClassType})}
+                      onChange={(e) => setClassForm({...classForm, type: e.target.value as 'live' | 'recorded'})}
                       className="sr-only"
                       disabled={isSubmitting}
                     />
@@ -2544,7 +2598,7 @@ export default function AdminClassesPage() {
                       <label className="text-sm font-medium text-gray-700">Recording Quality</label>
                       <Select 
                         value={classForm.recordingQuality} 
-                        onValueChange={(value) => setClassForm({...classForm, recordingQuality: value})}
+                        onValueChange={(value) => setClassForm({...classForm, recordingQuality: value as 'low' | 'medium' | 'high'})}
                         disabled={isSubmitting}
                       >
                         <SelectTrigger className="border-2 border-gray-200">

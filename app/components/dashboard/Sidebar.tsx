@@ -29,6 +29,7 @@ const navItems = [
   { name: 'Chat', href: '/dashboard/chat', icon: MessageSquare },
   { name: 'Community Forum', href: '/dashboard/forum', icon: Users },
   { name: 'Profile', href: '/dashboard/profile', icon: User },
+  { name: 'Groups', href: '/dashboard/group', icon: Users },
   { name: 'Payments', href: '/dashboard/payments', icon: CreditCard },
 ]
 

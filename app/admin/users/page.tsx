@@ -28,6 +28,7 @@ import {
 
 interface UserData {
   id: number
+  name: string
   username: string
   email: string
   phone: string | null
@@ -68,6 +69,8 @@ export default function AdminUsersPage() {
 
   // Get token from localStorage
   const getToken = () => {
+    if (typeof window === 'undefined') return null
+    
     const tokenSources = [
       localStorage.getItem('auth_token'),
       localStorage.getItem('admin_token'),
@@ -79,6 +82,8 @@ export default function AdminUsersPage() {
 
   // Check if user is admin
   const checkAdminAccess = () => {
+    if (typeof window === 'undefined') return false
+    
     const userData = localStorage.getItem('user_data')
     const userRole = localStorage.getItem('user_role')
     
@@ -173,10 +178,14 @@ export default function AdminUsersPage() {
           name: user.first_name && user.last_name 
             ? `${user.first_name} ${user.last_name}`
             : user.username || user.email?.split('@')[0] || 'User',
+          username: user.username || '',
           email: user.email,
           phone: user.phone || '+1234567890',
+          first_name: user.first_name,
+          last_name: user.last_name,
           role: user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'User',
           status: user.status || 'active',
+          created_at: user.created_at,
           joined: user.created_at ? new Date(user.created_at).toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
@@ -186,13 +195,9 @@ export default function AdminUsersPage() {
                        user.account_type === 'enterprise' ? 'Enterprise' :
                        user.account_type === 'demo' ? 'Basic' : 'Free',
           trades: user.trades || Math.floor(Math.random() * 100),
-          username: user.username,
-          first_name: user.first_name,
-          last_name: user.last_name,
           demo_balance: safeToNumber(user.demo_balance),
           account_type: user.account_type || 'demo',
-          balance: safeToNumber(user.balance),
-          created_at: user.created_at
+          balance: safeToNumber(user.balance)
         }))
         setUsers(transformedUsers)
         setError(null)
@@ -361,6 +366,8 @@ export default function AdminUsersPage() {
 
   // Handle logout
   const handleLogout = () => {
+    if (typeof window === 'undefined') return
+    
     localStorage.removeItem('auth_token')
     localStorage.removeItem('user_data')
     localStorage.removeItem('user_role')
@@ -370,23 +377,26 @@ export default function AdminUsersPage() {
   }
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         (user.username && user.username.toLowerCase().includes(searchQuery.toLowerCase()))
+    const matchesSearch = searchQuery === '' || 
+      user.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (user.username && user.username.toLowerCase().includes(searchQuery.toLowerCase()))
+    
     const matchesRole = selectedRole === 'all' || user.role.toLowerCase() === selectedRole.toLowerCase()
     const matchesStatus = selectedStatus === 'all' || user.status === selectedStatus
+    
     return matchesSearch && matchesRole && matchesStatus
   })
 
   const getStatusBadge = (status: string) => {
-    const styles = {
+    const styles: Record<string, string> = {
       active: 'bg-green-100 text-green-800',
       inactive: 'bg-gray-100 text-gray-800',
       pending: 'bg-yellow-100 text-yellow-800',
       suspended: 'bg-red-100 text-red-800'
     }
     return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${styles[status as keyof typeof styles] || 'bg-gray-100 text-gray-800'}`}>
+      <span className={`px-2 py-1 text-xs font-medium rounded-full ${styles[status] || 'bg-gray-100 text-gray-800'}`}>
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
     )
@@ -466,7 +476,13 @@ export default function AdminUsersPage() {
           </div>
           <p className="text-gray-600">Manage all platform users and permissions</p>
         </div>
-        
+        <div className="flex gap-3">
+      
+          <Button className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600">
+            <UserPlus className="w-4 h-4" />
+            Add User
+          </Button>
+          </div>
       </div>
 
       {/* Stats Cards */}
@@ -566,9 +582,9 @@ export default function AdminUsersPage() {
                 onChange={(e) => setSelectedRole(e.target.value)}
               >
                 <option value="all">All Roles</option>
-                <option value="Mentor">Mentor</option>
-                <option value="Mentee">Mentee</option>
-                <option value="Admin">Admin</option>
+                <option value="mentor">Mentor</option>
+                <option value="mentee">Mentee</option>
+                <option value="admin">Admin</option>
               </select>
               <select 
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -694,7 +710,6 @@ export default function AdminUsersPage() {
                           }`}>
                             {user.subscription}
                           </span>
-                          {/* FIXED: Using safe conversion */}
                           <div className="text-xs text-gray-600">
                             Balance: {formatCurrency(user.balance)} | Demo: {formatCurrency(user.demo_balance)}
                           </div>

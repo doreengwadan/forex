@@ -325,31 +325,31 @@ export default function AdminDashboardPage() {
   // Set mock data for development
   const setMockData = () => {
     setStats({
-      total_users: 1248,
-      total_revenue: 24580,
-      active_subscriptions: 342,
-      total_signals: 156,
-      user_growth: 12,
-      revenue_growth: 23,
-      subscription_growth: 8,
-      signal_growth: -5,
+      total_users: 0,
+      total_revenue: 0,
+      active_subscriptions: 0,
+      total_signals: 0,
+      user_growth: 0,
+      revenue_growth: 0,
+      subscription_growth: 0,
+      signal_growth: 0,
     })
 
     setUserGrowthData([
-      { month: 'Jan', users: 400, revenue: 2400 },
-      { month: 'Feb', users: 300, revenue: 1398 },
-      { month: 'Mar', users: 200, revenue: 9800 },
-      { month: 'Apr', users: 278, revenue: 3908 },
-      { month: 'May', users: 189, revenue: 4800 },
-      { month: 'Jun', users: 239, revenue: 3800 },
-      { month: 'Jul', users: 349, revenue: 4300 },
+      { month: 'Jan', users: 0, revenue: 0 },
+      { month: 'Feb', users: 0, revenue: 0 },
+      { month: 'Mar', users: 0, revenue: 0 },
+      { month: 'Apr', users: 0, revenue: 0 },
+      { month: 'May', users: 0, revenue: 0},
+      { month: 'Jun', users: 0, revenue: 0 },
+      { month: 'Jul', users: 0, revenue: 0 },
     ])
 
     setRevenueData([
-      { date: 'Week 1', revenue: 4000, subscriptions: 24 },
-      { date: 'Week 2', revenue: 5200, subscriptions: 31 },
-      { date: 'Week 3', revenue: 6800, subscriptions: 42 },
-      { date: 'Week 4', revenue: 8500, subscriptions: 53 },
+      { date: 'Week 1', revenue: 0, subscriptions: 0 },
+      { date: 'Week 2', revenue: 0, subscriptions: 0 },
+      { date: 'Week 3', revenue: 0, subscriptions: 0 },
+      { date: 'Week 4', revenue: 0, subscriptions: 0 },
     ])
 
     setRecentActivity([

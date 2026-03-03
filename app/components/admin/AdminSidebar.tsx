@@ -27,6 +27,7 @@ const adminNavItems = [
   { name: 'Signals', href: '/admin/signals', icon: TrendingUp },
   { name: 'Payments', href: '/admin/payments', icon: CreditCard },
   { name: 'Mentors', href: '/admin/mentors', icon: CreditCard },
+  { name: 'Groups', href: '/admin/group', icon: Users},
   
   { name: 'Reports', href: '/admin/Reports', icon: FileText },
   { name: 'Settings', href: '/admin/security', icon: Settings },

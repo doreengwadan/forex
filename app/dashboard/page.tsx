@@ -707,55 +707,12 @@ export default function DashboardPage() {
                 ))}
               </div>
             </div>
-          </div>
-
-          {/* Navigation Card (replaces Quick Actions) */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">Navigation</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const colorClasses = {
-                  blue: 'from-blue-50 to-blue-100 border-blue-200 text-blue-600',
-                  purple: 'from-purple-50 to-purple-100 border-purple-200 text-purple-600',
-                  green: 'from-green-50 to-green-100 border-green-200 text-green-600',
-                  orange: 'from-orange-50 to-orange-100 border-orange-200 text-orange-600',
-                  gray: 'from-gray-50 to-gray-100 border-gray-200 text-gray-600',
-                  red: 'from-red-50 to-red-100 border-red-200 text-red-600',
-                }[item.color];
-
-                return (
-                  <Link key={item.name} href={item.href} passHref>
-                    <div className={`flex flex-col items-center justify-center h-24 gap-2 bg-gradient-to-br ${colorClasses} hover:from-${item.color}-100 hover:to-${item.color}-200 border rounded-xl transition-all hover:scale-105 cursor-pointer`}>
-                      <Icon className="w-6 h-6" />
-                      <span className="text-sm font-medium">{item.name}</span>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Demo Info section completely removed */}
-        </div>
+          </div> 
+        
+         </div>
       </div>
 
-      {/* Footer */}
-      <div className="mt-8 border-t border-gray-200 bg-white">
-        <div className="px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="text-sm text-gray-600">
-              © {new Date().getFullYear()} Trading Platform. All rights reserved.
-            </div>
-            <div className="flex items-center gap-6 text-sm text-gray-600">
-              <a href="/privacy" className="hover:text-blue-600 transition-colors">Privacy Policy</a>
-              <a href="/terms" className="hover:text-blue-600 transition-colors">Terms of Service</a>
-              <a href="/support" className="hover:text-blue-600 transition-colors">Support</a>
-              {/* Removed account type indicator */}
-            </div>
-          </div>
-        </div>
+     
       </div>
-    </div>
   );
 }

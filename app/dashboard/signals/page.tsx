@@ -26,7 +26,10 @@ import {
   Info,
   Filter,
   Download,
-  MoreVertical
+  MoreVertical,
+  Globe,
+  Archive,
+  Zap
 } from 'lucide-react'
 import { Input } from '../../components/ui/Input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/Select'
@@ -44,20 +47,15 @@ import {
 interface Signal {
   id: number
   asset: string
-  type: 'BUY' | 'SELL'
+  type: 'buy' | 'sell'
   entry_price: number
   target_price: number
   stop_loss: number
   timeframe: string
-  status: 'active' | 'pending' | 'completed' | 'stopped'
+  status: 'published' | 'draft' | 'pending' | 'archived'
   category: string
-  risk_level: 'Low' | 'Medium' | 'High'
+  risk_level: 'low' | 'medium' | 'high'
   profit_loss?: string | null
-  pips: string
-  confidence: string
-  analysis?: string
-  priority: 'low' | 'normal' | 'high'
-  sent_at: string
   created_at: string
   updated_at: string
   mentor_name?: string
@@ -69,28 +67,30 @@ interface Signal {
 interface SignalStats {
   total_signals: number
   active_signals: number
+  pending_signals: number
   completed_signals: number
+  stopped_signals: number
+  total_following: number
   success_rate: number
   avg_profit: number
-  total_following: number
-  total_mentors: number
   today_signals: number
 }
 
 const defaultStats: SignalStats = {
   total_signals: 0,
   active_signals: 0,
+  pending_signals: 0,
   completed_signals: 0,
+  stopped_signals: 0,
+  total_following: 0,
   success_rate: 0,
   avg_profit: 0,
-  total_following: 0,
-  total_mentors: 0,
   today_signals: 0
 }
 
 const signalCategories = ['All', 'Crypto', 'Forex', 'Stocks', 'Commodities', 'Indices']
-const riskLevels = ['Low', 'Medium', 'High']
-const signalStatuses = ['all', 'active', 'pending', 'completed', 'stopped']
+const riskLevels = ['low', 'medium', 'high']
+const signalStatuses = ['all', 'published', 'pending', 'draft', 'archived']
 
 export default function SignalsPage() {
   const [signals, setSignals] = useState<Signal[]>([])
@@ -158,9 +158,24 @@ export default function SignalsPage() {
       if (data.success && data.data) {
         // Handle paginated response
         return {
-          signals: data.data.map((signal: Signal) => ({
-            ...signal,
-            profit_loss: signal.profit_loss || '0.0%'
+          signals: data.data.map((signal: any) => ({
+            id: signal.id,
+            asset: signal.asset,
+            type: signal.type,
+            entry_price: parseFloat(signal.entry_price),
+            target_price: parseFloat(signal.target_price),
+            stop_loss: parseFloat(signal.stop_loss),
+            timeframe: signal.timeframe,
+            status: signal.status,
+            category: signal.category,
+            risk_level: signal.risk_level,
+            profit_loss: signal.profit_loss || '0.0%',
+            created_at: signal.created_at,
+            updated_at: signal.updated_at,
+            mentor_name: signal.mentor_name,
+            mentor_id: signal.mentor_id,
+            followers_count: signal.followers_count || 0,
+            is_following: signal.is_following || false
           })),
           total: data.total || data.data.length,
           last_page: data.last_page || 1
@@ -168,9 +183,24 @@ export default function SignalsPage() {
       } else if (data.success && data.signals) {
         // Handle non-paginated response
         return {
-          signals: data.signals.map((signal: Signal) => ({
-            ...signal,
-            profit_loss: signal.profit_loss || '0.0%'
+          signals: data.signals.map((signal: any) => ({
+            id: signal.id,
+            asset: signal.asset,
+            type: signal.type,
+            entry_price: parseFloat(signal.entry_price),
+            target_price: parseFloat(signal.target_price),
+            stop_loss: parseFloat(signal.stop_loss),
+            timeframe: signal.timeframe,
+            status: signal.status,
+            category: signal.category,
+            risk_level: signal.risk_level,
+            profit_loss: signal.profit_loss || '0.0%',
+            created_at: signal.created_at,
+            updated_at: signal.updated_at,
+            mentor_name: signal.mentor_name,
+            mentor_id: signal.mentor_id,
+            followers_count: signal.followers_count || 0,
+            is_following: signal.is_following || false
           })),
           total: data.signals.length,
           last_page: 1
@@ -207,9 +237,17 @@ export default function SignalsPage() {
       if (response.ok) {
         const data = await response.json()
         if (data.success && data.stats) {
-          return data.stats
-        } else if (data.success && data.data) {
-          return data.data
+          return {
+            total_signals: data.stats.total_signals || 0,
+            active_signals: data.stats.active_signals || 0,
+            pending_signals: data.stats.pending_signals || 0,
+            completed_signals: data.stats.completed_signals || 0,
+            stopped_signals: data.stats.stopped_signals || 0,
+            total_following: data.stats.total_following || 0,
+            success_rate: data.stats.success_rate || 0,
+            avg_profit: data.stats.avg_profit || 0,
+            today_signals: data.stats.today_signals || 0
+          }
         }
       }
       return defaultStats
@@ -351,7 +389,7 @@ export default function SignalsPage() {
     }
     
     if (selectedRisk !== 'all') {
-      filtered = filtered.filter(signal => signal.risk_level.toLowerCase() === selectedRisk)
+      filtered = filtered.filter(signal => signal.risk_level === selectedRisk)
     }
     
     if (activeTab !== 'all') {
@@ -411,25 +449,25 @@ export default function SignalsPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-100 text-green-800 border-green-200'
-      case 'completed': return 'bg-blue-100 text-blue-800 border-blue-200'
+      case 'published': return 'bg-green-100 text-green-800 border-green-200'
       case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'stopped': return 'bg-red-100 text-red-800 border-red-200'
+      case 'draft': return 'bg-gray-100 text-gray-800 border-gray-200'
+      case 'archived': return 'bg-red-100 text-red-800 border-red-200'
       default: return 'bg-gray-100 text-gray-800 border-gray-200'
     }
   }
 
   const getTypeColor = (type: string) => {
-    return type === 'BUY' 
+    return type === 'buy' 
       ? 'bg-green-100 text-green-800 border-green-200'
       : 'bg-red-100 text-red-800 border-red-200'
   }
 
   const getRiskColor = (risk: string) => {
     switch (risk) {
-      case 'Low': return 'bg-emerald-100 text-emerald-800 border-emerald-200'
-      case 'Medium': return 'bg-amber-100 text-amber-800 border-amber-200'
-      case 'High': return 'bg-rose-100 text-rose-800 border-rose-200'
+      case 'low': return 'bg-emerald-100 text-emerald-800 border-emerald-200'
+      case 'medium': return 'bg-amber-100 text-amber-800 border-amber-200'
+      case 'high': return 'bg-rose-100 text-rose-800 border-rose-200'
       default: return 'bg-gray-100 text-gray-800 border-gray-200'
     }
   }
@@ -524,23 +562,7 @@ export default function SignalsPage() {
           <p className="text-gray-600 mt-2">Follow expert trading signals from top mentors</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button 
-            variant="outline" 
-            className="gap-2"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-          <Button 
-            variant="outline"
-            className="gap-2"
-            onClick={() => {/* Navigate to followed signals */}}
-          >
-            <Bell className="w-4 h-4" />
-            My Signals
-          </Button>
+          {/* Optional: Add any user actions here */}
         </div>
       </div>
 
@@ -550,7 +572,7 @@ export default function SignalsPage() {
           <CardContent className="pt-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-medium text-gray-600">Active Signals</p>
+                <p className="text-sm font-medium text-gray-600">Published Signals</p>
                 <p className="text-3xl font-bold mt-2 text-gray-900">
                   {stats.active_signals || 0}
                 </p>
@@ -718,8 +740,8 @@ export default function SignalsPage() {
                 <SelectContent>
                   <SelectItem value="all">All Levels</SelectItem>
                   {riskLevels.map(level => (
-                    <SelectItem key={level} value={level.toLowerCase()}>
-                      {level}
+                    <SelectItem key={level} value={level}>
+                      {level.charAt(0).toUpperCase() + level.slice(1)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -731,10 +753,10 @@ export default function SignalsPage() {
               <Tabs defaultValue="all" className="w-full" onValueChange={setActiveTab}>
                 <TabsList className="grid grid-cols-2 w-full">
                   <TabsTrigger value="all">All</TabsTrigger>
-                  <TabsTrigger value="active">Active</TabsTrigger>
+                  <TabsTrigger value="published">Published</TabsTrigger>
                   <TabsTrigger value="pending">Pending</TabsTrigger>
-                  <TabsTrigger value="completed">Completed</TabsTrigger>
-                  <TabsTrigger value="stopped">Stopped</TabsTrigger>
+                  <TabsTrigger value="draft">Draft</TabsTrigger>
+                  <TabsTrigger value="archived">Archived</TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
@@ -792,7 +814,7 @@ export default function SignalsPage() {
                     <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Signal</th>
                     <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Prices</th>
                     <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Status</th>
-                    <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Stats</th>
+                    <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">P/L</th>
                     <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Actions</th>
                   </tr>
                 </thead>
@@ -820,7 +842,7 @@ export default function SignalsPage() {
                             </span>
                           </div>
                           <div className="text-xs text-gray-400 mt-1">
-                            Sent {getTimeAgo(signal.sent_at)}
+                            {getTimeAgo(signal.created_at)}
                           </div>
                         </div>
                       </td>
@@ -842,27 +864,25 @@ export default function SignalsPage() {
                       <td className="py-5 px-6">
                         <div className="space-y-1">
                           <Badge className={getTypeColor(signal.type)}>
-                            {signal.type}
+                            {signal.type === 'buy' ? 'BUY' : 'SELL'}
                           </Badge>
-                          <div className="text-xs text-gray-500">{signal.pips} pips</div>
-                          <div className="text-xs text-amber-600">{signal.confidence} confidence</div>
                           <Badge variant="outline" className={getRiskColor(signal.risk_level)}>
                             <Shield className="w-3 h-3 mr-1" />
-                            {signal.risk_level}
+                            {signal.risk_level.charAt(0).toUpperCase() + signal.risk_level.slice(1)}
                           </Badge>
                         </div>
                       </td>
                       <td className="py-5 px-6">
-                        <div className="space-y-1">
-                          <div className="text-sm">
+                        <div className="space-y-1 text-sm">
+                          <div>
                             <span className="font-medium">Entry: </span>
                             <span className="font-bold">${signal.entry_price.toLocaleString()}</span>
                           </div>
-                          <div className="text-sm">
+                          <div>
                             <span className="font-medium text-green-600">Target: </span>
                             <span className="font-bold text-green-600">${signal.target_price.toLocaleString()}</span>
                           </div>
-                          <div className="text-sm">
+                          <div>
                             <span className="font-medium text-red-600">Stop: </span>
                             <span className="font-bold text-red-600">${signal.stop_loss.toLocaleString()}</span>
                           </div>
@@ -871,11 +891,12 @@ export default function SignalsPage() {
                       <td className="py-5 px-6">
                         <div className="space-y-1">
                           <Badge className={getStatusColor(signal.status)}>
+                            {signal.status === 'published' && <Globe className="w-3 h-3 mr-1" />}
+                            {signal.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
+                            {signal.status === 'draft' && <span className="mr-1">📝</span>}
+                            {signal.status === 'archived' && <Archive className="w-3 h-3 mr-1" />}
                             {signal.status.charAt(0).toUpperCase() + signal.status.slice(1)}
                           </Badge>
-                          <div className="text-xs text-gray-500">
-                            Priority: {signal.priority}
-                          </div>
                           {signal.is_following && (
                             <div className="text-xs text-green-600">
                               ✓ Following
@@ -886,9 +907,6 @@ export default function SignalsPage() {
                       <td className="py-5 px-6">
                         <div className={`text-lg font-bold ${getProfitLossColor(signal.profit_loss)}`}>
                           {signal.profit_loss || '0.0%'}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Profit/Loss
                         </div>
                       </td>
                       <td className="py-5 px-6">
@@ -983,10 +1001,10 @@ export default function SignalsPage() {
                   <h3 className="text-2xl font-bold text-gray-900">{viewDetails.asset}</h3>
                   <div className="flex items-center gap-2 mt-2">
                     <Badge className={getTypeColor(viewDetails.type)}>
-                      {viewDetails.type}
+                      {viewDetails.type === 'buy' ? 'BUY' : 'SELL'}
                     </Badge>
                     <Badge variant="outline" className={getRiskColor(viewDetails.risk_level)}>
-                      {viewDetails.risk_level} Risk
+                      {viewDetails.risk_level.charAt(0).toUpperCase() + viewDetails.risk_level.slice(1)} Risk
                     </Badge>
                     <Badge variant="outline">
                       {viewDetails.timeframe}
@@ -1030,25 +1048,20 @@ export default function SignalsPage() {
                       {viewDetails.status.charAt(0).toUpperCase() + viewDetails.status.slice(1)}
                     </Badge>
                   </div>
+                  {viewDetails.mentor_name && (
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">Mentor</Label>
+                      <p className="text-lg font-bold text-gray-900">{viewDetails.mentor_name}</p>
+                    </div>
+                  )}
                   <div>
-                    <Label className="text-sm font-medium text-gray-500">Confidence</Label>
-                    <p className="text-lg font-bold text-amber-600">{viewDetails.confidence}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Expected Pips</Label>
-                    <p className="text-lg font-bold text-gray-900">{viewDetails.pips}</p>
+                    <Label className="text-sm font-medium text-gray-500">Category</Label>
+                    <Badge variant="outline" className={getCategoryColor(viewDetails.category)}>
+                      {viewDetails.category}
+                    </Badge>
                   </div>
                 </div>
               </div>
-
-              {viewDetails.analysis && (
-                <div className="mb-6">
-                  <Label className="text-sm font-medium text-gray-700 mb-2">Technical Analysis</Label>
-                  <div className="p-4 bg-gray-50 rounded-lg border">
-                    <p className="text-gray-700 whitespace-pre-line">{viewDetails.analysis}</p>
-                  </div>
-                </div>
-              )}
 
               <div className="flex gap-3 pt-4 border-t">
                 <Button

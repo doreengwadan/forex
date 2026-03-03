@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
+import Script from 'next/script'
 import { 
   Check, 
   X, 
@@ -14,16 +15,28 @@ import {
   Crown,
   TrendingUp,
   Users,
-  ArrowRight,
   History,
   AlertCircle,
   Loader2,
   Calendar as CalendarIcon,
   Upload,
-  FileText
+  FileText,
+  CreditCard,
+  ExternalLink
 } from 'lucide-react'
 import { useToast } from '../../hooks/use-toast'
 import { useRouter } from 'next/navigation'
+
+// Declare PayChangu global type
+declare global {
+  interface Window {
+    PayChanguCheckout?: (options: {
+      payment_url: string
+      onClose?: () => void
+      onSuccess?: () => void
+    }) => void
+  }
+}
 
 interface Plan {
   id: number
@@ -75,6 +88,13 @@ export default function PaymentsPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadProgress, setUploadProgress] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+
+  // PayChangu states
+  const [showPayChanguModal, setShowPayChanguModal] = useState(false)
+  const [selectedPlanForPayChangu, setSelectedPlanForPayChangu] = useState<Plan | null>(null)
+  const [isPayChanguReady, setIsPayChanguReady] = useState(false)
+  const [payChanguError, setPayChanguError] = useState<string | null>(null)
+  const [scriptLoadAttempted, setScriptLoadAttempted] = useState(false)
 
   const { toast } = useToast()
   const router = useRouter()
@@ -151,8 +171,6 @@ export default function PaymentsPage() {
           },
         })
         
-        console.log('Plans API response status:', plansRes.status)
-        
         if (plansRes.ok) {
           const plansData = await plansRes.json()
           console.log('Raw plans data:', plansData)
@@ -160,17 +178,13 @@ export default function PaymentsPage() {
           if (plansData.success) {
             const rawPlans = plansData.plans || plansData.data || []
             
-            // Normalize plans: look for any possible ID field
             const normalizedPlans = rawPlans.map((plan: any, index: number) => {
-              // Try to extract ID from various possible field names
               let id = plan.id ?? plan.plan_id ?? plan.ID ?? plan._id ?? null
               
-              // If no ID found, log a warning and assign a temporary negative ID for rendering
               if (id === null) {
-                console.warn('Plan missing ID, using index as fallback for rendering', plan)
-                id = -(index + 1) // temporary negative ID
+                console.warn('Plan missing ID, using index as fallback', plan)
+                id = -(index + 1)
               } else {
-                // Convert to number if it's a string
                 id = Number(id)
               }
 
@@ -183,15 +197,12 @@ export default function PaymentsPage() {
                 is_current: plan.is_current || false,
                 popular: plan.popular || false,
                 amount: plan.amount,
-                currency: plan.currency || 'USD'
+                currency: plan.currency || 'MWK'
               }
             })
 
-            console.log('Normalized plans:', normalizedPlans)
             setPlans(normalizedPlans)
           }
-        } else {
-          console.error('Plans fetch not OK:', plansRes.status)
         }
       } catch (error) {
         console.error('Error fetching plans:', error)
@@ -218,11 +229,6 @@ export default function PaymentsPage() {
 
     } catch (error) {
       console.error('Error in fetchData:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to load payment data. Please try again.',
-        variant: 'destructive',
-      })
     } finally {
       setIsLoading(false)
     }
@@ -284,6 +290,134 @@ export default function PaymentsPage() {
     }
   }
 
+  // ==================== PAYCHANGU INTEGRATION ====================
+
+  const handlePayChanguPayment = async (plan: Plan) => {
+    try {
+      setIsProcessing(true)
+      setPayChanguError(null)
+      setSelectedPlanForPayChangu(plan)
+      
+      const token = getToken()
+      const user = getUserData()
+      
+      if (!token || !user) {
+        toast({
+          title: 'Authentication Required',
+          description: 'Please login to continue',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      // Check if plan has valid ID
+      if (!plan.id || plan.id < 0) {
+        toast({
+          title: 'Invalid Plan',
+          description: 'Plan data is invalid. Please contact support.',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      // Create payment on your backend
+      const response = await fetch(`${API_BASE_URL}/payments/create-paychangu-payment`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          plan_id: plan.id,
+          amount: plan.amount || parseFloat(plan.price.replace(/[^\d.-]/g, '')),
+          currency: plan.currency || 'MWK',
+          email: user.email,
+          first_name: user.first_name || user.name?.split(' ')[0] || 'Customer',
+          last_name: user.last_name || user.name?.split(' ')[1] || '',
+        }),
+      })
+
+      // Log response status for debugging
+      console.log('Payment creation response status:', response.status)
+
+      // Try to parse response even if not OK
+      const data = await response.json().catch(() => null)
+      
+      if (!data) {
+        throw new Error('Invalid response from server')
+      }
+
+      console.log('Payment creation response:', data)
+      
+      if (data.success && data.payment_url) {
+        setShowPayChanguModal(true)
+        
+        // Try modal if script loaded, otherwise use redirect
+        if (window.PayChanguCheckout && isPayChanguReady) {
+          try {
+            window.PayChanguCheckout({
+              payment_url: data.payment_url,
+              onClose: () => {
+                setShowPayChanguModal(false)
+                setSelectedPlanForPayChangu(null)
+                setIsProcessing(false)
+                toast({
+                  title: 'Payment Cancelled',
+                  description: 'You closed the payment window.',
+                })
+              },
+              onSuccess: () => {
+                toast({
+                  title: 'Payment Successful',
+                  description: 'Your subscription has been activated!',
+                })
+                setShowPayChanguModal(false)
+                setSelectedPlanForPayChangu(null)
+                setIsProcessing(false)
+                fetchData()
+              },
+            })
+          } catch (modalError) {
+            console.error('Modal error, falling back to redirect:', modalError)
+            window.open(data.payment_url, '_blank')
+            setIsProcessing(false)
+            setShowPayChanguModal(false)
+          }
+        } else {
+          // Fallback to redirect
+          window.open(data.payment_url, '_blank')
+          setIsProcessing(false)
+          setShowPayChanguModal(false)
+          
+          toast({
+            title: 'Redirecting to Payment',
+            description: 'Please complete payment in the new tab.',
+            duration: 10000,
+          })
+        }
+      } else {
+        throw new Error(data.message || data.error || 'Failed to create payment')
+      }
+    } catch (error) {
+      console.error('PayChangu payment error:', error)
+      
+      let errorMessage = 'Failed to process payment'
+      if (error instanceof Error) {
+        errorMessage = error.message
+      }
+      
+      setPayChanguError(errorMessage)
+      toast({
+        title: 'Payment Error',
+        description: errorMessage,
+        variant: 'destructive',
+      })
+      setIsProcessing(false)
+      setShowPayChanguModal(false)
+      setSelectedPlanForPayChangu(null)
+    }
+  }
+
   // Manual upload functions
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -293,13 +427,11 @@ export default function PaymentsPage() {
   }
 
   const handleUploadProof = async () => {
-    // Guard: ensure a plan is selected
     if (!selectedPlanForUpload) {
       setUploadError('No plan selected. Please close and try again.')
       return
     }
 
-    // Check if the plan has a valid positive ID (not temporary negative)
     if (!selectedPlanForUpload.id || selectedPlanForUpload.id < 0) {
       setUploadError('Invalid plan data: missing valid ID. Please contact support.')
       return
@@ -329,7 +461,7 @@ export default function PaymentsPage() {
       formData.append('plan_id', selectedPlanForUpload.id.toString())
       formData.append('plan_name', selectedPlanForUpload.name)
       formData.append('amount', (selectedPlanForUpload.amount || parseFloat(selectedPlanForUpload.price.replace(/[^\d.-]/g, ''))).toString())
-      formData.append('currency', selectedPlanForUpload.currency || 'USD')
+      formData.append('currency', selectedPlanForUpload.currency || 'MWK')
 
       const response = await fetch(`${API_BASE_URL}/payments/upload-proof`, {
         method: 'POST',
@@ -348,7 +480,7 @@ export default function PaymentsPage() {
         setShowUploadModal(false)
         setUploadFile(null)
         setSelectedPlanForUpload(null)
-        await fetchData() // Refresh to show pending transaction
+        await fetchData()
       } else {
         throw new Error(data.message || 'Upload failed')
       }
@@ -365,8 +497,8 @@ export default function PaymentsPage() {
     }
   }
 
-  const formatCurrency = (price: number, currency: string = 'USD') => {
-    return new Intl.NumberFormat('en-US', {
+  const formatCurrency = (price: number, currency: string = 'MWK') => {
+    return new Intl.NumberFormat('en-MW', {
       style: 'currency',
       currency,
       minimumFractionDigits: 0,
@@ -387,10 +519,24 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-8">
+      {/* PayChangu Script */}
+      <Script
+        src="https://paychangu.com/js/popup.js"
+        strategy="afterInteractive"
+        onLoad={() => {
+          console.log('PayChangu script loaded successfully')
+          setIsPayChanguReady(true)
+        }}
+        onError={() => {
+          console.error('Failed to load PayChangu script - will use redirect fallback')
+          setIsPayChanguReady(false)
+        }}
+      />
+
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Billing & Subscription</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">Manage your subscription and upload proof of payment</p>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">Manage your subscription and make payments</p>
       </div>
 
       {/* Current Plan */}
@@ -450,7 +596,7 @@ export default function PaymentsPage() {
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">No Active Subscription</h2>
-                  <p className="text-gray-600 dark:text-gray-400">Subscribe to a plan by uploading proof of payment</p>
+                  <p className="text-gray-600 dark:text-gray-400">Choose a payment method below to subscribe</p>
                 </div>
               </div>
             </div>
@@ -494,23 +640,43 @@ export default function PaymentsPage() {
                       </li>
                     ))}
                   </ul>
+                  
                   {plan.is_current ? (
                     <Button variant="outline" className="w-full" disabled>
                       Current Plan
                     </Button>
                   ) : (
-                    <Button 
-                      variant="default"
-                      className="w-full gap-2"
-                      onClick={() => {
-                        setSelectedPlanForUpload(plan)
-                        setShowUploadModal(true)
-                      }}
-                      disabled={isProcessing}
-                    >
-                      <Upload className="w-4 h-4" />
-                      Select Plan & Upload Proof
-                    </Button>
+                    <div className="space-y-2">
+                      <Button 
+                        variant="default"
+                        className="w-full gap-2 bg-blue-600 hover:bg-blue-700"
+                        onClick={() => handlePayChanguPayment(plan)}
+                        disabled={isProcessing}
+                      >
+                        {isProcessing && selectedPlanForPayChangu?.id === plan.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <CreditCard className="w-4 h-4" />
+                        )}
+                        Pay with PayChangu
+                        {!isPayChanguReady && !scriptLoadAttempted && (
+                          <ExternalLink className="w-3 h-3 ml-1" />
+                        )}
+                      </Button>
+                      
+                      <Button 
+                        variant="outline"
+                        className="w-full gap-2"
+                        onClick={() => {
+                          setSelectedPlanForUpload(plan)
+                          setShowUploadModal(true)
+                        }}
+                        disabled={isProcessing}
+                      >
+                        <Upload className="w-4 h-4" />
+                        Upload Proof (Manual)
+                      </Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -729,6 +895,36 @@ export default function PaymentsPage() {
                     Upload
                   </>
                 )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PayChangu Loading Modal */}
+      {showPayChanguModal && selectedPlanForPayChangu && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="text-center">
+              <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
+              <h3 className="text-lg font-bold mb-2">Opening Payment Window</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Please wait while we redirect you to the payment page...
+              </p>
+              {payChanguError && (
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg mb-4">
+                  <p className="text-sm text-red-600 dark:text-red-400">{payChanguError}</p>
+                </div>
+              )}
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowPayChanguModal(false)
+                  setSelectedPlanForPayChangu(null)
+                  setIsProcessing(false)
+                }}
+              >
+                Cancel
               </Button>
             </div>
           </div>
