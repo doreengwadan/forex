@@ -29,6 +29,8 @@ import {
   List,
   Filter,
   X,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 interface Group {
@@ -478,44 +480,35 @@ export default function UserGroupsPage() {
   const getDemoGroups = (): Group[] => [
     {
       id: 1,
-      name: 'Trading Strategies',
-      description: 'Advanced trading strategies and discussion group for experienced traders. Share your winning strategies and learn from others.',
-      slug: 'trading-strategies',
-      icon: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=64&h=64&fit=crop',
-      cover_image: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=1200&h=400&fit=crop',
-      members_count: 1234,
-      online_count: 89,
-      is_private: false,
+      name: 'to wind',
+      description: 'This one as well the new one',
+      slug: 'to-wind',
+      icon: null,
+      cover_image: null,
+      members_count: 2,
+      online_count: 2,
+      is_private: true,
       requires_approval: false,
       created_by: {
         id: 1,
         name: 'Admin User',
         email: 'admin@example.com',
       },
-      moderators: [
-        { id: 2, name: 'John Smith', email: 'john@example.com', role: 'admin' },
-        { id: 3, name: 'Sarah Chen', email: 'sarah@example.com', role: 'moderator' },
-      ],
-      rules: [
-        'Be respectful to other members',
-        'No spam or self-promotion',
-        'Stay on topic',
-        'Share your analysis with evidence',
-      ],
-      tags: ['trading', 'stocks', 'strategies', 'analysis'],
+      moderators: [],
+      tags: ['trading', 'general'],
       created_at: '2024-01-15T10:00:00Z',
       updated_at: '2024-02-20T15:30:00Z',
       status: 'active',
     },
     {
       id: 2,
-      name: 'Crypto Enthusiasts',
-      description: 'Discussion about cryptocurrency trading and blockchain technology. From Bitcoin to DeFi, all crypto topics welcome.',
-      slug: 'crypto-enthusiasts',
-      icon: 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=64&h=64&fit=crop',
-      cover_image: 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=1200&h=400&fit=crop',
-      members_count: 856,
-      online_count: 45,
+      name: 'forex trading',
+      description: 'This is the group where we are to create learn forex trading here',
+      slug: 'forex-trading',
+      icon: null,
+      cover_image: null,
+      members_count: 1,
+      online_count: 1,
       is_private: true,
       requires_approval: true,
       created_by: {
@@ -523,98 +516,10 @@ export default function UserGroupsPage() {
         name: 'Admin User',
         email: 'admin@example.com',
       },
-      moderators: [
-        { id: 4, name: 'Mike Thompson', email: 'mike@example.com', role: 'moderator' },
-      ],
-      rules: [
-        'No price speculation',
-        'DYOR before asking',
-        'Respect community guidelines',
-        'No pump and dump discussions',
-      ],
-      tags: ['crypto', 'bitcoin', 'ethereum', 'blockchain'],
+      moderators: [],
+      tags: ['forex', 'trading', 'learning'],
       created_at: '2024-02-01T14:00:00Z',
       updated_at: '2024-02-19T09:15:00Z',
-      status: 'active',
-    },
-    {
-      id: 3,
-      name: 'Technical Analysis',
-      description: 'Learn and discuss technical analysis indicators and patterns. Chart patterns, indicators, and trading signals.',
-      slug: 'technical-analysis',
-      icon: 'https://images.unsplash.com/photo-1642790551116-18e150f248e3?w=64&h=64&fit=crop',
-      cover_image: 'https://images.unsplash.com/photo-1642790551116-18e150f248e3?w=1200&h=400&fit=crop',
-      members_count: 567,
-      online_count: 23,
-      is_private: false,
-      requires_approval: false,
-      created_by: {
-        id: 5,
-        name: 'Emma Wilson',
-        email: 'emma@example.com',
-      },
-      moderators: [],
-      rules: [
-        'Share charts with analysis',
-        'Explain your reasoning',
-        'Be constructive',
-        'No offensive content',
-      ],
-      tags: ['technical-analysis', 'charts', 'indicators', 'patterns'],
-      created_at: '2024-02-10T09:00:00Z',
-      updated_at: '2024-02-18T16:45:00Z',
-      status: 'active',
-    },
-    {
-      id: 4,
-      name: 'Fundamental Analysis',
-      description: 'Deep dive into company fundamentals, financial statements, and valuation methods.',
-      slug: 'fundamental-analysis',
-      members_count: 345,
-      online_count: 12,
-      is_private: false,
-      requires_approval: false,
-      created_by: {
-        id: 6,
-        name: 'David Kim',
-        email: 'david@example.com',
-      },
-      moderators: [],
-      rules: [
-        'Cite your sources',
-        'Focus on fundamentals',
-        'No short-term price discussion',
-      ],
-      tags: ['fundamental-analysis', 'valuation', 'financials', 'stocks'],
-      created_at: '2024-02-15T11:00:00Z',
-      updated_at: '2024-02-17T10:30:00Z',
-      status: 'active',
-    },
-    {
-      id: 5,
-      name: 'Options Trading',
-      description: 'Advanced options strategies and discussion. For experienced options traders only.',
-      slug: 'options-trading',
-      members_count: 234,
-      online_count: 8,
-      is_private: true,
-      requires_approval: true,
-      created_by: {
-        id: 7,
-        name: 'Lisa Wang',
-        email: 'lisa@example.com',
-      },
-      moderators: [
-        { id: 8, name: 'Tom Bradley', email: 'tom@example.com', role: 'moderator' },
-      ],
-      rules: [
-        'No naked options discussion',
-        'Risk management first',
-        'Experienced traders only',
-      ],
-      tags: ['options', 'derivatives', 'strategies', 'greeks'],
-      created_at: '2024-02-20T13:00:00Z',
-      updated_at: '2024-02-21T09:45:00Z',
       status: 'active',
     },
   ];
@@ -917,39 +822,20 @@ export default function UserGroupsPage() {
             {viewMode === 'grid' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredGroups.map((group) => (
-                  <Card key={group.id} className="border-0 shadow-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm overflow-hidden hover:shadow-2xl transition-all group cursor-pointer"
+                  <Card 
+                    key={group.id} 
+                    className="border-0 shadow-xl bg-white dark:bg-gray-800 overflow-hidden hover:shadow-2xl transition-all cursor-pointer"
                     onClick={() => {
                       setSelectedGroup(group);
                       setShowGroupDetails(true);
                     }}
                   >
-                    {/* Cover Image */}
-                    {group.cover_image ? (
-                      <div className="h-32 w-full overflow-hidden">
-                        <img 
-                          src={group.cover_image} 
-                          alt={group.name}
-                          className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                        />
-                      </div>
-                    ) : (
-                      <div className="h-32 w-full bg-gradient-to-r from-blue-500 to-purple-600" />
-                    )}
+                    {/* Colored Header based on privacy */}
+                    <div className={`h-2 w-full ${
+                      group.is_private ? 'bg-amber-500' : 'bg-emerald-500'
+                    }`} />
                     
-                    {/* Icon */}
-                    <div className="relative px-4">
-                      <div className="absolute -top-8 left-4">
-                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center border-4 border-white dark:border-gray-800 shadow-lg">
-                          {group.icon ? (
-                            <img src={group.icon} alt={group.name} className="w-full h-full rounded-xl object-cover" />
-                          ) : (
-                            <Hash className="w-8 h-8 text-white" />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <CardContent className="pt-10 p-4">
+                    <CardContent className="p-4">
                       {/* Header */}
                       <div className="flex items-start justify-between mb-2">
                         <div>
@@ -958,16 +844,23 @@ export default function UserGroupsPage() {
                           </h3>
                           <div className="flex items-center gap-2 mt-1">
                             {group.is_private ? (
-                              <Lock className="w-3 h-3 text-amber-500" />
+                              <>
+                                <Lock className="w-3 h-3 text-amber-500" />
+                                <span className="text-xs text-gray-500">Private</span>
+                              </>
                             ) : (
-                              <Globe className="w-3 h-3 text-emerald-500" />
+                              <>
+                                <Globe className="w-3 h-3 text-emerald-500" />
+                                <span className="text-xs text-gray-500">Public</span>
+                              </>
                             )}
-                            <span className="text-xs text-gray-500">
-                              {group.is_private ? 'Private' : 'Public'}
-                            </span>
-                            {getMembershipBadge(group)}
                           </div>
                         </div>
+                        
+                        {/* Membership Badge */}
+                        {getMembershipBadge(group) && (
+                          <div>{getMembershipBadge(group)}</div>
+                        )}
                       </div>
                       
                       {/* Description */}
@@ -975,23 +868,9 @@ export default function UserGroupsPage() {
                         {group.description}
                       </p>
                       
-                      {/* Tags */}
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {group.tags.slice(0, 3).map(tag => (
-                          <Badge key={tag} variant="outline" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                        {group.tags.length > 3 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{group.tags.length - 3}
-                          </Badge>
-                        )}
-                      </div>
-                      
                       {/* Stats */}
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3 text-sm mb-4">
+                        <div className="flex items-center gap-1">
                           <Users className="w-4 h-4 text-gray-400" />
                           <span>{formatMemberCount(group.members_count)} members</span>
                         </div>
@@ -1001,53 +880,50 @@ export default function UserGroupsPage() {
                         </div>
                       </div>
                       
-                      {/* Join Button */}
-                      <div className="mt-4">
-                        {group.is_member ? (
-                          group.membership_status === 'pending' ? (
-                            <Button 
-                              className="w-full bg-amber-500 hover:bg-amber-600"
-                              disabled
-                            >
-                              <Clock className="w-4 h-4 mr-2" />
-                              Pending Approval
-                            </Button>
-                          ) : (
-                            <Button 
-                              className="w-full bg-emerald-600 hover:bg-emerald-700"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Navigate to group chat
-                                window.location.href = `/groups/${group.id}/chat`;
-                              }}
-                            >
-                              <MessageSquare className="w-4 h-4 mr-2" />
-                              View Chat
-                            </Button>
-                          )
+                      {/* Action Button */}
+                      {group.is_member ? (
+                        group.membership_status === 'pending' ? (
+                          <Button 
+                            className="w-full bg-amber-500 hover:bg-amber-600 cursor-default"
+                            disabled
+                          >
+                            <Clock className="w-4 h-4 mr-2" />
+                            Pending Approval
+                          </Button>
                         ) : (
                           <Button 
-                            className="w-full bg-gradient-to-r from-blue-600 to-purple-600"
+                            className="w-full bg-emerald-600 hover:bg-emerald-700"
                             onClick={(e) => {
                               e.stopPropagation();
-                              joinGroup(group.id);
+                              window.location.href = `/groups/${group.id}/chat`;
                             }}
-                            disabled={isJoining === group.id}
                           >
-                            {isJoining === group.id ? (
-                              <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                Joining...
-                              </>
-                            ) : (
-                              <>
-                                <LogIn className="w-4 h-4 mr-2" />
-                                Join Group
-                              </>
-                            )}
+                            <Eye className="w-4 h-4 mr-2" />
+                            View Chat
                           </Button>
-                        )}
-                      </div>
+                        )
+                      ) : (
+                        <Button 
+                          className="w-full bg-gradient-to-r from-blue-600 to-purple-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            joinGroup(group.id);
+                          }}
+                          disabled={isJoining === group.id}
+                        >
+                          {isJoining === group.id ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Joining...
+                            </>
+                          ) : (
+                            <>
+                              <LogIn className="w-4 h-4 mr-2" />
+                              Join Group
+                            </>
+                          )}
+                        </Button>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
@@ -1058,103 +934,80 @@ export default function UserGroupsPage() {
                 {filteredGroups.map((group) => (
                   <Card 
                     key={group.id} 
-                    className="border-0 shadow-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm hover:shadow-2xl transition-all cursor-pointer"
+                    className="border-0 shadow-xl bg-white dark:bg-gray-800 hover:shadow-2xl transition-all cursor-pointer"
                     onClick={() => {
                       setSelectedGroup(group);
                       setShowGroupDetails(true);
                     }}
                   >
                     <CardContent className="p-4">
-                      <div className="flex items-start gap-4">
-                        {/* Icon */}
-                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                          {group.icon ? (
-                            <img src={group.icon} alt={group.name} className="w-full h-full rounded-xl object-cover" />
-                          ) : (
-                            <Hash className="w-8 h-8 text-white" />
-                          )}
-                        </div>
-                        
-                        {/* Content */}
+                      <div className="flex items-center justify-between">
                         <div className="flex-1">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <h3 className="font-semibold text-lg text-gray-900 dark:text-white">
-                                {group.name}
-                              </h3>
-                              <div className="flex items-center gap-2 mt-1">
-                                {group.is_private ? (
-                                  <Lock className="w-3 h-3 text-amber-500" />
-                                ) : (
-                                  <Globe className="w-3 h-3 text-emerald-500" />
-                                )}
-                                <span className="text-xs text-gray-500">
-                                  {group.is_private ? 'Private' : 'Public'}
-                                </span>
-                                {getMembershipBadge(group)}
-                              </div>
-                            </div>
-                            
-                            <div className="flex items-center gap-4">
-                              <div className="text-right">
-                                <div className="text-sm font-medium">
-                                  {formatMemberCount(group.members_count)} members
-                                </div>
-                                <div className="text-xs text-emerald-600">
-                                  {group.online_count} online
-                                </div>
-                              </div>
-                              
-                              {group.is_member ? (
-                                group.membership_status === 'pending' ? (
-                                  <Badge className="bg-amber-500">Pending</Badge>
-                                ) : (
-                                  <Button 
-                                    size="sm"
-                                    className="bg-emerald-600 hover:bg-emerald-700"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      window.location.href = `/groups/${group.id}/chat`;
-                                    }}
-                                  >
-                                    <MessageSquare className="w-4 h-4 mr-2" />
-                                    Chat
-                                  </Button>
-                                )
-                              ) : (
-                                <Button 
-                                  size="sm"
-                                  className="bg-gradient-to-r from-blue-600 to-purple-600"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    joinGroup(group.id);
-                                  }}
-                                  disabled={isJoining === group.id}
-                                >
-                                  {isJoining === group.id ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <LogIn className="w-4 h-4 mr-2" />
-                                      Join
-                                    </>
-                                  )}
-                                </Button>
-                              )}
-                            </div>
+                          <div className="flex items-center gap-3">
+                            <h3 className="font-semibold text-lg text-gray-900 dark:text-white">
+                              {group.name}
+                            </h3>
+                            {group.is_private ? (
+                              <Lock className="w-4 h-4 text-amber-500" />
+                            ) : (
+                              <Globe className="w-4 h-4 text-emerald-500" />
+                            )}
+                            {getMembershipBadge(group)}
                           </div>
                           
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                             {group.description}
                           </p>
                           
-                          <div className="flex flex-wrap gap-1 mt-3">
-                            {group.tags.map(tag => (
-                              <Badge key={tag} variant="outline" className="text-xs">
-                                {tag}
-                              </Badge>
-                            ))}
+                          <div className="flex items-center gap-4 mt-2 text-sm">
+                            <div className="flex items-center gap-1">
+                              <Users className="w-4 h-4 text-gray-400" />
+                              <span>{formatMemberCount(group.members_count)} members</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+                              <span className="text-emerald-600">{group.online_count} online</span>
+                            </div>
                           </div>
+                        </div>
+                        
+                        <div className="ml-4">
+                          {group.is_member ? (
+                            group.membership_status === 'pending' ? (
+                              <Badge className="bg-amber-500">Pending</Badge>
+                            ) : (
+                              <Button 
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.location.href = `/groups/${group.id}/chat`;
+                                }}
+                              >
+                                <Eye className="w-4 h-4 mr-2" />
+                                View Chat
+                              </Button>
+                            )
+                          ) : (
+                            <Button 
+                              size="sm"
+                              className="bg-gradient-to-r from-blue-600 to-purple-600"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                joinGroup(group.id);
+                              }}
+                              disabled={isJoining === group.id}
+                            >
+                              {isJoining === group.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <LogIn className="w-4 h-4 mr-2" />
+                                  Join
+                                </>
+                              )}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -1202,34 +1055,8 @@ export default function UserGroupsPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {myGroups.map((group) => (
-                  <Card key={group.id} className="border-0 shadow-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm overflow-hidden">
-                    {/* Cover Image */}
-                    {group.cover_image ? (
-                      <div className="h-32 w-full overflow-hidden">
-                        <img 
-                          src={group.cover_image} 
-                          alt={group.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="h-32 w-full bg-gradient-to-r from-blue-500 to-purple-600" />
-                    )}
-                    
-                    {/* Icon */}
-                    <div className="relative px-4">
-                      <div className="absolute -top-8 left-4">
-                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center border-4 border-white dark:border-gray-800 shadow-lg">
-                          {group.icon ? (
-                            <img src={group.icon} alt={group.name} className="w-full h-full rounded-xl object-cover" />
-                          ) : (
-                            <Hash className="w-8 h-8 text-white" />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <CardContent className="pt-10 p-4">
+                  <Card key={group.id} className="border-0 shadow-xl bg-white dark:bg-gray-800 overflow-hidden">
+                    <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <h3 className="font-semibold text-lg text-gray-900 dark:text-white">
@@ -1244,14 +1071,6 @@ export default function UserGroupsPage() {
                             <span className="text-xs text-gray-500">
                               {group.is_private ? 'Private' : 'Public'}
                             </span>
-                            {group.joined_at && (
-                              <>
-                                <span className="text-xs text-gray-400">•</span>
-                                <span className="text-xs text-gray-500">
-                                  Joined {new Date(group.joined_at).toLocaleDateString()}
-                                </span>
-                              </>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -1260,8 +1079,8 @@ export default function UserGroupsPage() {
                         {group.description}
                       </p>
                       
-                      <div className="flex items-center justify-between text-sm mb-4">
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3 text-sm mb-4">
+                        <div className="flex items-center gap-1">
                           <Users className="w-4 h-4 text-gray-400" />
                           <span>{formatMemberCount(group.members_count)} members</span>
                         </div>
@@ -1278,8 +1097,8 @@ export default function UserGroupsPage() {
                             window.location.href = `/groups/${group.id}/chat`;
                           }}
                         >
-                          <MessageSquare className="w-4 h-4 mr-2" />
-                          Open Chat
+                          <Eye className="w-4 h-4 mr-2" />
+                          View Chat
                         </Button>
                         <Button 
                           variant="outline"
@@ -1302,202 +1121,148 @@ export default function UserGroupsPage() {
         )}
       </div>
 
-      {/* Group Details Modal */}
+      {/* Group Details Modal - FIXED TRANSPARENCY */}
       {showGroupDetails && selectedGroup && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="max-w-4xl w-full">
-            <Card className="border-0 shadow-xl overflow-hidden">
-              {/* Cover Image */}
-              {selectedGroup.cover_image ? (
-                <div className="h-48 w-full overflow-hidden">
-                  <img 
-                    src={selectedGroup.cover_image} 
-                    alt={selectedGroup.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="h-48 w-full bg-gradient-to-r from-blue-500 to-purple-600" />
-              )}
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 overflow-y-auto backdrop-blur-sm">
+          <div className="max-w-2xl w-full">
+            <Card className="border-0 shadow-2xl bg-white dark:bg-gray-800 overflow-hidden">
+              {/* Colored Header based on privacy */}
+              <div className={`h-2 w-full ${
+                selectedGroup.is_private ? 'bg-amber-500' : 'bg-emerald-500'
+              }`} />
               
-              <CardHeader className="border-b border-gray-200 dark:border-gray-700 relative">
-                <div className="absolute -top-12 left-6">
-                  <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center border-4 border-white dark:border-gray-800 shadow-lg">
-                    {selectedGroup.icon ? (
-                      <img src={selectedGroup.icon} alt={selectedGroup.name} className="w-full h-full rounded-xl object-cover" />
-                    ) : (
-                      <Hash className="w-10 h-10 text-white" />
-                    )}
-                  </div>
-                </div>
-                
-                <div className="ml-28">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-2xl">{selectedGroup.name}</CardTitle>
-                      <div className="flex items-center gap-3 mt-1">
-                        <div className="flex items-center gap-1">
-                          {selectedGroup.is_private ? (
+              <CardHeader className="border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-2xl">{selectedGroup.name}</CardTitle>
+                    <div className="flex items-center gap-3 mt-2">
+                      <div className="flex items-center gap-1">
+                        {selectedGroup.is_private ? (
+                          <>
                             <Lock className="w-4 h-4 text-amber-500" />
-                          ) : (
-                            <Globe className="w-4 h-4 text-emerald-500" />
-                          )}
-                          <span className="text-sm text-gray-600 dark:text-gray-400">
-                            {selectedGroup.is_private ? 'Private Group' : 'Public Group'}
-                          </span>
-                        </div>
-                        {selectedGroup.requires_approval && (
-                          <Badge variant="outline" className="text-amber-600 border-amber-200">
-                            <ShieldAlert className="w-3 h-3 mr-1" />
-                            Approval Required
-                          </Badge>
-                        )}
-                        {getMembershipBadge(selectedGroup)}
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      {selectedGroup.is_member ? (
-                        selectedGroup.membership_status === 'pending' ? (
-                          <Button disabled className="bg-amber-500">
-                            <Clock className="w-4 h-4 mr-2" />
-                            Pending Approval
-                          </Button>
+                            <span className="text-sm text-gray-600 dark:text-gray-400">Private Group</span>
+                          </>
                         ) : (
                           <>
-                            <Button 
-                              className="bg-gradient-to-r from-blue-600 to-purple-600"
-                              onClick={() => {
-                                window.location.href = `/groups/${selectedGroup.id}/chat`;
-                              }}
-                            >
-                              <MessageSquare className="w-4 h-4 mr-2" />
-                              Open Chat
-                            </Button>
-                            <Button 
-                              variant="outline"
-                              onClick={() => leaveGroup(selectedGroup.id)}
-                              disabled={isJoining === selectedGroup.id}
-                            >
-                              {isJoining === selectedGroup.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <LogOut className="w-4 h-4" />
-                              )}
-                            </Button>
+                            <Globe className="w-4 h-4 text-emerald-500" />
+                            <span className="text-sm text-gray-600 dark:text-gray-400">Public Group</span>
                           </>
-                        )
-                      ) : (
-                        <Button 
-                          className="bg-gradient-to-r from-blue-600 to-purple-600"
-                          onClick={() => joinGroup(selectedGroup.id)}
-                          disabled={isJoining === selectedGroup.id}
-                        >
-                          {isJoining === selectedGroup.id ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Joining...
-                            </>
-                          ) : (
-                            <>
-                              <LogIn className="w-4 h-4 mr-2" />
-                              Join Group
-                            </>
-                          )}
-                        </Button>
+                        )}
+                      </div>
+                      {selectedGroup.requires_approval && (
+                        <Badge variant="outline" className="text-amber-600 border-amber-200">
+                          <ShieldAlert className="w-3 h-3 mr-1" />
+                          Approval Required
+                        </Badge>
                       )}
-                      <Button variant="outline" onClick={() => setShowGroupDetails(false)}>
-                        Close
-                      </Button>
+                      {getMembershipBadge(selectedGroup)}
                     </div>
                   </div>
+                  
+                  <Button variant="ghost" size="icon" onClick={() => setShowGroupDetails(false)}>
+                    <X className="w-5 h-5" />
+                  </Button>
                 </div>
               </CardHeader>
               
-              <CardContent className="p-6">
-                <div className="grid grid-cols-3 gap-6">
-                  {/* Left Column - Stats */}
-                  <div className="col-span-1 space-y-4">
-                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                      <h4 className="font-semibold mb-3">Group Stats</h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Members:</span>
-                          <span className="font-medium">{selectedGroup.members_count.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Online now:</span>
-                          <span className="font-medium text-emerald-600">{selectedGroup.online_count}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Created:</span>
-                          <span className="font-medium">{new Date(selectedGroup.created_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
+              <CardContent className="p-6 space-y-4">
+                {/* Description */}
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                  <h4 className="font-semibold mb-2">About</h4>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    {selectedGroup.description}
+                  </p>
+                </div>
+                
+                {/* Stats */}
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                  <h4 className="font-semibold mb-3">Group Stats</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm text-gray-500">Members</div>
+                      <div className="text-xl font-bold">{selectedGroup.members_count}</div>
                     </div>
-                    
-                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                      <h4 className="font-semibold mb-3">Tags</h4>
-                      <div className="flex flex-wrap gap-2">
+                    <div>
+                      <div className="text-sm text-gray-500">Online Now</div>
+                      <div className="text-xl font-bold text-emerald-600">{selectedGroup.online_count}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Created</div>
+                      <div className="text-sm">{new Date(selectedGroup.created_at).toLocaleDateString()}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Tags</div>
+                      <div className="flex flex-wrap gap-1 mt-1">
                         {selectedGroup.tags.map((tag) => (
-                          <Badge key={tag} variant="outline" className="bg-white dark:bg-gray-800">
+                          <Badge key={tag} variant="outline" className="text-xs">
                             {tag}
                           </Badge>
                         ))}
                       </div>
                     </div>
-                    
-                    {selectedGroup.moderators.length > 0 && (
-                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                        <h4 className="font-semibold mb-3">Moderators</h4>
-                        <div className="space-y-2">
-                          {selectedGroup.moderators.map((mod) => (
-                            <div key={mod.id} className="flex items-center gap-2">
-                              <Shield className="w-4 h-4 text-purple-500" />
-                              <span className="text-sm">{mod.name}</span>
-                              <Badge className="ml-auto text-xs">
-                                {mod.role}
-                              </Badge>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
-                  
-                  {/* Right Column - Details */}
-                  <div className="col-span-2 space-y-4">
-                    {/* Description */}
-                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                      <h4 className="font-semibold mb-2">About</h4>
-                      <p className="text-gray-600 dark:text-gray-400">
-                        {selectedGroup.description}
-                      </p>
-                    </div>
-                    
-                    {/* Rules */}
-                    {selectedGroup.rules && selectedGroup.rules.length > 0 && (
-                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                        <h4 className="font-semibold mb-3">Group Rules</h4>
-                        <ol className="list-decimal list-inside space-y-2">
-                          {selectedGroup.rules.map((rule, index) => (
-                            <li key={index} className="text-sm text-gray-600 dark:text-gray-400">
-                              {rule}
-                            </li>
-                          ))}
-                        </ol>
-                      </div>
-                    )}
-                    
-                    {/* Created By */}
-                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                      <h4 className="font-semibold mb-2">Created By</h4>
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm">{selectedGroup.created_by.name}</span>
-                      </div>
-                    </div>
-                  </div>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-2">
+                  {selectedGroup.is_member ? (
+                    selectedGroup.membership_status === 'pending' ? (
+                      <Button disabled className="flex-1 bg-amber-500">
+                        <Clock className="w-4 h-4 mr-2" />
+                        Pending Approval
+                      </Button>
+                    ) : (
+                      <>
+                        <Button 
+                          className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600"
+                          onClick={() => {
+                            window.location.href = `/groups/${selectedGroup.id}/chat`;
+                          }}
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          Open Chat
+                        </Button>
+                        <Button 
+                          variant="outline"
+                          onClick={() => leaveGroup(selectedGroup.id)}
+                          disabled={isJoining === selectedGroup.id}
+                          className="px-6"
+                        >
+                          {isJoining === selectedGroup.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <LogOut className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </>
+                    )
+                  ) : (
+                    <>
+                      <Button 
+                        className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600"
+                        onClick={() => joinGroup(selectedGroup.id)}
+                        disabled={isJoining === selectedGroup.id}
+                      >
+                        {isJoining === selectedGroup.id ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Joining...
+                          </>
+                        ) : (
+                          <>
+                            <LogIn className="w-4 h-4 mr-2" />
+                            Join Group
+                          </>
+                        )}
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        onClick={() => setShowGroupDetails(false)}
+                      >
+                        Close
+                      </Button>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>

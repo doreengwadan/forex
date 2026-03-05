@@ -7,6 +7,7 @@ import { Badge } from '../ui/Badge'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getEcho } from '../../lib/echo'
+import Image from 'next/image'
 
 interface UserData {
   id: number
@@ -22,6 +23,7 @@ interface UserData {
   account_type?: string
   balance?: string
   avatar?: string
+  avatar_url?: string
   membership_type?: string
 }
 
@@ -56,6 +58,9 @@ interface AdminHeaderProps {
   description?: string
 }
 
+// API Base URL
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+
 // Create a custom event name for user updates
 const USER_UPDATE_EVENT = 'userDataUpdated'
 
@@ -68,6 +73,13 @@ export const emitUserUpdate = (userData: UserData | null) => {
 // Function to manually update user data in localStorage and notify all components
 export const updateUserData = (userData: UserData | null) => {
   if (userData) {
+    // Construct avatar URL if needed
+    if (userData.avatar && !userData.avatar.startsWith('http')) {
+      userData.avatar_url = `${API_BASE_URL.replace('/api', '')}/storage/${userData.avatar}`
+    } else if (userData.avatar) {
+      userData.avatar_url = userData.avatar
+    }
+    
     localStorage.setItem('user_data', JSON.stringify(userData))
     // Also store as 'user' for backward compatibility
     localStorage.setItem('user', JSON.stringify(userData))
@@ -98,8 +110,6 @@ export default function AdminHeader({
   const notificationsEndRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const echoRef = useRef<any>(null)
-
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
   // ===================== USER HELPER FUNCTIONS =====================
 
@@ -151,7 +161,7 @@ export default function AdminHeader({
     return 'User'
   }
 
-  // Function to load user data
+  // Function to load user data from localStorage
   const loadUserData = () => {
     try {
       // Try 'user_data' first (from login page)
@@ -164,6 +174,14 @@ export default function AdminHeader({
       
       if (userStr) {
         const userData = JSON.parse(userStr)
+        
+        // Construct avatar URL if needed
+        if (userData.avatar && !userData.avatar.startsWith('http')) {
+          userData.avatar_url = `${API_BASE_URL.replace('/api', '')}/storage/${userData.avatar}`
+        } else if (userData.avatar) {
+          userData.avatar_url = userData.avatar
+        }
+        
         setUser(userData)
       }
     } catch (error) {
@@ -202,6 +220,14 @@ export default function AdminHeader({
         if (response.ok) {
           const data = await response.json()
           const userData = data.user || data // Handle both response formats
+          
+          // Construct avatar URL if needed
+          if (userData.avatar && !userData.avatar.startsWith('http')) {
+            userData.avatar_url = `${API_BASE_URL.replace('/api', '')}/storage/${userData.avatar}`
+          } else if (userData.avatar) {
+            userData.avatar_url = userData.avatar
+          }
+          
           setUser(userData)
           updateUserData(userData) // Update localStorage and notify other components
           return true
@@ -264,7 +290,7 @@ export default function AdminHeader({
       
       // Redirect
       if (window.location.pathname.includes('/admin')) {
-        router.push('/admin/login')
+        router.push('/login')
       } else {
         router.push('/login')
       }
@@ -319,7 +345,7 @@ export default function AdminHeader({
     setUnreadCount(prev => prev + 1)
     
     // Show browser notification if supported and permitted
-    if (Notification.permission === 'granted') {
+    if (typeof window !== 'undefined' && Notification.permission === 'granted') {
       new Notification(formattedNotification.title, {
         body: formattedNotification.content || '',
         icon: '/favicon.ico',
@@ -563,6 +589,14 @@ export default function AdminHeader({
         if (e.newValue) {
           try {
             const userData = JSON.parse(e.newValue)
+            
+            // Construct avatar URL if needed
+            if (userData.avatar && !userData.avatar.startsWith('http')) {
+              userData.avatar_url = `${API_BASE_URL.replace('/api', '')}/storage/${userData.avatar}`
+            } else if (userData.avatar) {
+              userData.avatar_url = userData.avatar
+            }
+            
             setUser(userData)
           } catch (error) {
             console.error('Error parsing updated user data:', error)
@@ -868,12 +902,21 @@ export default function AdminHeader({
                 className="flex items-center space-x-2 hover:bg-slate-700/50 text-gray-300 hover:text-white transition-all duration-200 group"
                 onClick={() => setShowUserMenu(!showUserMenu)}
               >
-                {user?.avatar ? (
-                  <img 
-                    src={user.avatar} 
-                    alt={getUserDisplayName()}
-                    className="w-8 h-8 rounded-full object-cover border border-cyan-500/30 group-hover:border-cyan-400 transition-colors"
-                  />
+                {user?.avatar_url ? (
+                  <div className="w-8 h-8 rounded-full overflow-hidden border border-cyan-500/30 group-hover:border-cyan-400 transition-colors">
+                    <Image
+                      src={user.avatar_url}
+                      alt={getUserDisplayName()}
+                      width={32}
+                      height={32}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // If image fails to load, fallback to initials
+                        e.currentTarget.style.display = 'none'
+                        e.currentTarget.parentElement?.classList.add('bg-gradient-to-r', 'from-cyan-500', 'to-blue-600')
+                      }}
+                    />
+                  </div>
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 flex items-center justify-center text-white text-sm font-bold group-hover:scale-105 transition-transform">
                     {getUserInitials()}
@@ -910,12 +953,20 @@ export default function AdminHeader({
                     <div className="p-4 border-b border-slate-700 bg-slate-900/50">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
-                          {user?.avatar ? (
-                            <img 
-                              src={user.avatar} 
-                              alt={getUserDisplayName()}
-                              className="w-12 h-12 rounded-full object-cover border-2 border-cyan-500/50"
-                            />
+                          {user?.avatar_url ? (
+                            <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-cyan-500/50">
+                              <Image
+                                src={user.avatar_url}
+                                alt={getUserDisplayName()}
+                                width={48}
+                                height={48}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none'
+                                  e.currentTarget.parentElement?.classList.add('bg-gradient-to-r', 'from-cyan-500', 'to-blue-600')
+                                }}
+                              />
+                            </div>
                           ) : (
                             <div className="w-12 h-12 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold text-lg">
                               {getUserInitials()}
@@ -1009,7 +1060,7 @@ export default function AdminHeader({
             </div>
 
             {/* Switch view button */}
-            {user?.role === 'admin' && !window.location.pathname.includes('/admin') && (
+            {user?.role === 'admin' && typeof window !== 'undefined' && !window.location.pathname.includes('/admin') && (
               <Button
                 variant="outline"
                 size="sm"

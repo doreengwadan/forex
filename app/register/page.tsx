@@ -2,23 +2,20 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, ArrowRight, Users } from 'lucide-react';
+import { Eye, EyeOff, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
-// Update the interface
 interface RegisterData {
   username: string;
   email: string;
   password: string;
-  password_confirmation: string; // Changed from password_confirm
+  password_confirmation: string;
   first_name: string;
   last_name: string;
 }
 
-// DIRECT API CALL FUNCTION - UPDATED
 const registerUser = async (data: RegisterData) => {
   try {
-    // First, get CSRF token from Laravel
     const csrfResponse = await fetch('http://localhost:8000/sanctum/csrf-cookie', {
       method: 'GET',
       credentials: 'include',
@@ -28,7 +25,6 @@ const registerUser = async (data: RegisterData) => {
       throw new Error('Failed to get CSRF token');
     }
 
-    // Then, make the registration request
     const response = await fetch('http://localhost:8000/api/register', {
       method: 'POST',
       headers: {
@@ -76,7 +72,7 @@ export default function RegisterPage() {
     username: '',
     email: '',
     password: '',
-    password_confirmation: '', // Changed
+    password_confirmation: '',
     first_name: '',
     last_name: '',
   });
@@ -92,8 +88,6 @@ export default function RegisterPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
-    
-    // Clear errors when user starts typing
     setFieldErrors(prev => {
       const newErrors = { ...prev };
       delete newErrors[name];
@@ -104,24 +98,20 @@ export default function RegisterPage() {
   const validateForm = (): boolean => {
     const errors: { [key: string]: string } = {};
 
-    // Required fields - match Laravel validation
     if (!form.username.trim()) errors.username = 'Username is required';
     if (!form.email.trim()) errors.email = 'Email is required';
     if (!form.password.trim()) errors.password = 'Password is required';
     if (!form.password_confirmation.trim()) errors.password_confirmation = 'Please confirm your password';
 
-    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (form.email && !emailRegex.test(form.email)) {
       errors.email = 'Please enter a valid email address';
     }
 
-    // Password validation (min 8 chars)
     if (form.password.length < 8) {
       errors.password = 'Password must be at least 8 characters';
     }
 
-    // Password confirmation
     if (form.password !== form.password_confirmation) {
       errors.password_confirmation = 'Passwords do not match';
     }
@@ -135,31 +125,20 @@ export default function RegisterPage() {
     
     let score = 0;
     
-    // Length
     if (password.length >= 8) score += 20;
     if (password.length >= 12) score += 20;
-    
-    // Character variety
     if (/[A-Z]/.test(password)) score += 20;
     if (/[a-z]/.test(password)) score += 20;
     if (/\d/.test(password)) score += 20;
     if (/[^A-Za-z0-9]/.test(password)) score += 20;
     
-    // Cap at 100
     score = Math.min(score, 100);
     
-    // Determine level
-    if (score >= 80) {
-      return { score, text: 'Very Strong', color: 'bg-green-500' };
-    } else if (score >= 60) {
-      return { score, text: 'Strong', color: 'bg-blue-500' };
-    } else if (score >= 40) {
-      return { score, text: 'Good', color: 'bg-yellow-500' };
-    } else if (score >= 20) {
-      return { score, text: 'Weak', color: 'bg-orange-500' };
-    } else {
-      return { score, text: 'Very Weak', color: 'bg-red-500' };
-    }
+    if (score >= 80) return { score, text: 'Very Strong', color: 'bg-green-500' };
+    if (score >= 60) return { score, text: 'Strong', color: 'bg-blue-500' };
+    if (score >= 40) return { score, text: 'Good', color: 'bg-yellow-500' };
+    if (score >= 20) return { score, text: 'Weak', color: 'bg-orange-500' };
+    return { score, text: 'Very Weak', color: 'bg-red-500' };
   };
 
   const hasError = (fieldName: string) => fieldErrors[fieldName];
@@ -168,11 +147,9 @@ export default function RegisterPage() {
     e.preventDefault();
     if (loading) return;
 
-    // Clear previous messages
     setMessage(null);
     setFieldErrors({});
 
-    // Validate frontend first
     if (!validateForm()) {
       setMessage({ type: 'error', text: 'Please fix validation errors before submitting.' });
       return;
@@ -208,7 +185,6 @@ export default function RegisterPage() {
         return;
       }
 
-      // Handle validation errors from Laravel
       if (response.errors) {
         const errors: { [key: string]: string } = {};
         Object.entries(response.errors).forEach(([key, value]) => {
@@ -216,21 +192,13 @@ export default function RegisterPage() {
         });
         setFieldErrors(errors);
         
-        // Show the first error as a message
         const firstError = Object.values(errors)[0];
-        setMessage({ 
-          type: 'error', 
-          text: firstError || 'Please fix the form errors.' 
-        });
+        setMessage({ type: 'error', text: firstError || 'Please fix the form errors.' });
         return;
       }
 
-      // Handle other errors
       if (!response.success && response.message) {
-        setMessage({ 
-          type: 'error', 
-          text: response.message 
-        });
+        setMessage({ type: 'error', text: response.message });
         return;
       }
 
@@ -245,10 +213,7 @@ export default function RegisterPage() {
         errorMessage = error.message;
       }
       
-      setMessage({ 
-        type: 'error', 
-        text: errorMessage 
-      });
+      setMessage({ type: 'error', text: errorMessage });
     } finally {
       setLoading(false);
     }
@@ -258,8 +223,8 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
-      <div className="max-w-6xl w-full grid lg:grid-cols-2 gap-8 items-center">
-        {/* Left Side - Registration Form */}
+      <div className="max-w-md w-full lg:max-w-2xl">
+        {/* Registration Form */}
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200/50">
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-8 text-white">
             <div className="flex items-center justify-between">
@@ -444,7 +409,7 @@ export default function RegisterPage() {
               <div className="relative">
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}
-                  name="password_confirmation" // Changed to match Laravel
+                  name="password_confirmation"
                   value={form.password_confirmation}
                   onChange={handleChange}
                   placeholder="Confirm your password"
@@ -506,40 +471,6 @@ export default function RegisterPage() {
               </p>
             </div>
           </form>
-        </div>
-
-        {/* Right Side - Features */}
-        <div className="space-y-8">
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 text-white">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-                <Users className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold">Join 1,000+ Successful Traders</h3>
-                <p className="text-gray-300">Start your journey with expert guidance</p>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold">95%</div>
-                <div className="text-sm text-gray-300">Success Rate</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold">50+</div>
-                <div className="text-sm text-gray-300">Expert Mentors</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold">24/7</div>
-                <div className="text-sm text-gray-300">Live Support</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold">Free</div>
-                <div className="text-sm text-gray-300">14-Day Trial</div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

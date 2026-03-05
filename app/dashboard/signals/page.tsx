@@ -29,20 +29,25 @@ import {
   MoreVertical,
   Globe,
   Archive,
-  Zap
+  Zap,
+  TrendingDown,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Send,
+  Mail,
+  BarChart,
+  DollarSign,
+  Edit,
+  Trash2
 } from 'lucide-react'
 import { Input } from '../../components/ui/Input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/Select'
 import { Label } from '../../components/ui/Label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/Tabs'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../../components/ui/DropdownMenu'
+import { Switch } from '../../components/ui/Switch'
+import { Textarea } from '../../components/ui/Textarea'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../components/ui/Dialog'
 
 interface Signal {
   id: number
@@ -92,6 +97,18 @@ const signalCategories = ['All', 'Crypto', 'Forex', 'Stocks', 'Commodities', 'In
 const riskLevels = ['low', 'medium', 'high']
 const signalStatuses = ['all', 'published', 'pending', 'draft', 'archived']
 
+const getCategoryColor = (category: string) => {
+  const colors: Record<string, string> = {
+    'Crypto': 'from-purple-500 to-violet-600',
+    'Forex': 'from-blue-500 to-indigo-600',
+    'Stocks': 'from-cyan-500 to-teal-600',
+    'Commodities': 'from-amber-500 to-orange-600',
+    'Indices': 'from-fuchsia-500 to-pink-600',
+    'default': 'from-gray-500 to-gray-600'
+  }
+  return colors[category] || colors.default
+}
+
 export default function SignalsPage() {
   const [signals, setSignals] = useState<Signal[]>([])
   const [filteredSignals, setFilteredSignals] = useState<Signal[]>([])
@@ -108,6 +125,8 @@ export default function SignalsPage() {
   const [showBulkActions, setShowBulkActions] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'profit' | 'followers'>('newest')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
   // Get token from localStorage
   const getToken = () => {
@@ -372,7 +391,7 @@ export default function SignalsPage() {
     }
   }
 
-  // Filter signals based on search and filters
+  // Filter and sort signals based on search and filters
   useEffect(() => {
     let filtered = [...signals]
     
@@ -395,9 +414,29 @@ export default function SignalsPage() {
     if (activeTab !== 'all') {
       filtered = filtered.filter(signal => signal.status === activeTab)
     }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'newest':
+          return sortOrder === 'desc' 
+            ? new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            : new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        case 'profit':
+          const aProfit = parseFloat(a.profit_loss?.replace('%', '') || '0')
+          const bProfit = parseFloat(b.profit_loss?.replace('%', '') || '0')
+          return sortOrder === 'desc' ? bProfit - aProfit : aProfit - bProfit
+        case 'followers':
+          return sortOrder === 'desc' 
+            ? (b.followers_count || 0) - (a.followers_count || 0)
+            : (a.followers_count || 0) - (b.followers_count || 0)
+        default:
+          return 0
+      }
+    })
     
     setFilteredSignals(filtered)
-  }, [searchQuery, selectedCategory, selectedRisk, activeTab, signals])
+  }, [searchQuery, selectedCategory, selectedRisk, activeTab, signals, sortBy, sortOrder])
 
   // Handle signal selection for bulk actions
   const handleSignalSelect = (signalId: number) => {
@@ -449,25 +488,25 @@ export default function SignalsPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'published': return 'bg-green-100 text-green-800 border-green-200'
-      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'draft': return 'bg-gray-100 text-gray-800 border-gray-200'
-      case 'archived': return 'bg-red-100 text-red-800 border-red-200'
-      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+      case 'published': return 'bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-emerald-200/50'
+      case 'pending': return 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-amber-200/50'
+      case 'draft': return 'bg-gradient-to-r from-gray-500 to-gray-600 text-white shadow-gray-200/50'
+      case 'archived': return 'bg-gradient-to-r from-rose-500 to-red-500 text-white shadow-rose-200/50'
+      default: return 'bg-gradient-to-r from-gray-500 to-gray-600 text-white'
     }
   }
 
   const getTypeColor = (type: string) => {
     return type === 'buy' 
-      ? 'bg-green-100 text-green-800 border-green-200'
-      : 'bg-red-100 text-red-800 border-red-200'
+      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-emerald-200/50'
+      : 'bg-gradient-to-r from-rose-500 to-red-500 text-white shadow-rose-200/50'
   }
 
   const getRiskColor = (risk: string) => {
     switch (risk) {
-      case 'low': return 'bg-emerald-100 text-emerald-800 border-emerald-200'
-      case 'medium': return 'bg-amber-100 text-amber-800 border-amber-200'
-      case 'high': return 'bg-rose-100 text-rose-800 border-rose-200'
+      case 'low': return 'bg-gradient-to-r from-emerald-100 to-emerald-50 text-emerald-800 border-emerald-200'
+      case 'medium': return 'bg-gradient-to-r from-amber-100 to-amber-50 text-amber-800 border-amber-200'
+      case 'high': return 'bg-gradient-to-r from-rose-100 to-rose-50 text-rose-800 border-rose-200'
       default: return 'bg-gray-100 text-gray-800 border-gray-200'
     }
   }
@@ -477,18 +516,6 @@ export default function SignalsPage() {
     if (pl.startsWith('+')) return 'text-green-600 font-bold'
     if (pl.startsWith('-')) return 'text-red-600 font-bold'
     return 'text-gray-600'
-  }
-
-  const getCategoryColor = (category: string) => {
-    const colors: Record<string, string> = {
-      'Crypto': 'bg-purple-100 text-purple-800',
-      'Forex': 'bg-blue-100 text-blue-800',
-      'Stocks': 'bg-cyan-100 text-cyan-800',
-      'Commodities': 'bg-amber-100 text-amber-800',
-      'Indices': 'bg-pink-100 text-pink-800',
-      'default': 'bg-gray-100 text-gray-800'
-    }
-    return colors[category] || colors.default
   }
 
   const getTimeAgo = (dateString: string) => {
@@ -558,17 +585,27 @@ export default function SignalsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Trading Signals</h1>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+            Trading Signals
+          </h1>
           <p className="text-gray-600 mt-2">Follow expert trading signals from top mentors</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          {/* Optional: Add any user actions here */}
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
       </div>
 
       {/* Stats Cards - User Version */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
+        <Card className="border-0 shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-1 bg-gradient-to-br from-white to-emerald-50/30 border border-emerald-100/50">
           <CardContent className="pt-6">
             <div className="flex justify-between items-start">
               <div>
@@ -581,14 +618,14 @@ export default function SignalsPage() {
                   <span className="text-sm text-green-600 ml-1">Live Now</span>
                 </div>
               </div>
-              <div className="p-3 rounded-xl bg-green-100">
-                <Eye className="w-6 h-6 text-green-600" />
+              <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 shadow-lg">
+                <Eye className="w-6 h-6 text-emerald-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-0 shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-1 bg-gradient-to-br from-white to-blue-50/30 border border-blue-100/50">
           <CardContent className="pt-6">
             <div className="flex justify-between items-start">
               <div>
@@ -601,14 +638,14 @@ export default function SignalsPage() {
                   <span className="text-sm text-blue-600 ml-1">Signals</span>
                 </div>
               </div>
-              <div className="p-3 rounded-xl bg-blue-100">
+              <div className="p-3 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 shadow-lg">
                 <Users className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-0 shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-1 bg-gradient-to-br from-white to-amber-50/30 border border-amber-100/50">
           <CardContent className="pt-6">
             <div className="flex justify-between items-start">
               <div>
@@ -621,14 +658,14 @@ export default function SignalsPage() {
                   <span className="text-sm text-amber-600 ml-1">Platform average</span>
                 </div>
               </div>
-              <div className="p-3 rounded-xl bg-amber-100">
+              <div className="p-3 rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 shadow-lg">
                 <Target className="w-6 h-6 text-amber-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-0 shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-1 bg-gradient-to-br from-white to-purple-50/30 border border-purple-100/50">
           <CardContent className="pt-6">
             <div className="flex justify-between items-start">
               <div>
@@ -641,7 +678,7 @@ export default function SignalsPage() {
                   <span className="text-sm text-purple-600 ml-1">Per signal</span>
                 </div>
               </div>
-              <div className="p-3 rounded-xl bg-purple-100">
+              <div className="p-3 rounded-xl bg-gradient-to-br from-purple-100 to-pink-100 shadow-lg">
                 <TrendingUp className="w-6 h-6 text-purple-600" />
               </div>
             </div>
@@ -651,7 +688,7 @@ export default function SignalsPage() {
 
       {/* Bulk Actions Bar */}
       {showBulkActions && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 animate-fade-in">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <CheckCircle className="w-5 h-5 text-blue-600" />
@@ -664,7 +701,7 @@ export default function SignalsPage() {
                 variant="outline"
                 size="sm"
                 onClick={handleBulkFollow}
-                className="border-green-200 hover:bg-green-50"
+                className="border-green-200 hover:bg-green-50 hover:border-green-300 transition-all"
               >
                 <CheckCircle className="w-4 h-4 mr-2" />
                 Follow
@@ -673,7 +710,7 @@ export default function SignalsPage() {
                 variant="outline"
                 size="sm"
                 onClick={handleBulkUnfollow}
-                className="border-red-200 hover:bg-red-50 text-red-700"
+                className="border-red-200 hover:bg-red-50 hover:border-red-300 text-red-700 transition-all"
               >
                 <XCircle className="w-4 h-4 mr-2" />
                 Unfollow
@@ -693,37 +730,38 @@ export default function SignalsPage() {
       {/* Filters and Content */}
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Filters Sidebar */}
-        <Card className="lg:w-1/4">
-          <CardHeader>
+        <Card className="lg:w-1/4 border-0 shadow-xl bg-gradient-to-b from-white to-gray-50/50">
+          <CardHeader className="pb-4 border-b border-gray-200/50">
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Filter className="w-5 h-5 text-blue-600" />
+              <Filter className="w-5 h-5 text-indigo-600" />
               Filter Signals
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 pt-6">
             <div>
-              <Label htmlFor="search" className="mb-2">Search Signals</Label>
+              <Label htmlFor="search" className="mb-2 block text-sm font-medium text-gray-700">Search Signals</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
                   id="search"
-                  placeholder="Asset, Mentor..."
+                  placeholder="BTC, Crypto, Mentor..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 border-2 border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 transition-all"
                 />
               </div>
             </div>
 
             <div>
-              <Label className="mb-2">Category</Label>
+              <Label className="mb-2 block text-sm font-medium text-gray-700">Category</Label>
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger>
+                <SelectTrigger className="border-2 border-gray-300 focus:border-indigo-500">
                   <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
                 <SelectContent>
                   {signalCategories.map(category => (
-                    <SelectItem key={category} value={category}>
+                    <SelectItem key={category} value={category} className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${getCategoryColor(category)}`}></div>
                       {category}
                     </SelectItem>
                   ))}
@@ -732,16 +770,22 @@ export default function SignalsPage() {
             </div>
 
             <div>
-              <Label className="mb-2">Risk Level</Label>
+              <Label className="mb-2 block text-sm font-medium text-gray-700">Risk Level</Label>
               <Select value={selectedRisk} onValueChange={setSelectedRisk}>
-                <SelectTrigger>
+                <SelectTrigger className="border-2 border-gray-300 focus:border-indigo-500">
                   <SelectValue placeholder="All Risk Levels" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Levels</SelectItem>
                   {riskLevels.map(level => (
                     <SelectItem key={level} value={level}>
-                      {level.charAt(0).toUpperCase() + level.slice(1)}
+                      <div className="flex items-center gap-2">
+                        <Shield className={`w-3 h-3 ${
+                          level === 'low' ? 'text-emerald-500' :
+                          level === 'medium' ? 'text-amber-500' : 'text-rose-500'
+                        }`} />
+                        {level.charAt(0).toUpperCase() + level.slice(1)}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -749,26 +793,48 @@ export default function SignalsPage() {
             </div>
 
             <div>
-              <Label className="mb-2">Status</Label>
-              <Tabs defaultValue="all" className="w-full" onValueChange={setActiveTab}>
-                <TabsList className="grid grid-cols-2 w-full">
-                  <TabsTrigger value="all">All</TabsTrigger>
-                  <TabsTrigger value="published">Published</TabsTrigger>
-                  <TabsTrigger value="pending">Pending</TabsTrigger>
-                  <TabsTrigger value="draft">Draft</TabsTrigger>
-                  <TabsTrigger value="archived">Archived</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <Label className="mb-2 block text-sm font-medium text-gray-700">Sort By</Label>
+              <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
+                <SelectTrigger className="border-2 border-gray-300 focus:border-indigo-500">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">Newest First</SelectItem>
+                  <SelectItem value="profit">Highest Profit</SelectItem>
+                  <SelectItem value="followers">Most Followed</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 w-full gap-2"
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              >
+                {sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+              </Button>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-gray-200/50">
+              <Label className="block text-sm font-medium text-gray-700">Quick Actions</Label>
+              <div className="space-y-2">
+                <Button variant="outline" className="w-full justify-start gap-2 border-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-700 transition-all">
+                  <Download className="w-4 h-4" />
+                  Export List
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Main Content */}
-        <Card className="lg:w-3/4 overflow-hidden">
-          <CardHeader>
+        <Card className="lg:w-3/4 border-0 shadow-xl bg-gradient-to-b from-white to-gray-50/50 overflow-hidden">
+          <CardHeader className="border-b border-gray-200/50">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <CardTitle>Available Signals</CardTitle>
+                <CardTitle className="text-xl bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                  Available Signals
+                </CardTitle>
                 <CardDescription className="mt-2">
                   <span className="font-semibold text-gray-900">{filteredSignals.length}</span> signals • 
                   <span className="ml-2 text-green-600 font-medium">{(stats.success_rate || 0)}% success rate</span>
@@ -779,7 +845,7 @@ export default function SignalsPage() {
                   variant="outline"
                   size="sm"
                   onClick={handleSelectAll}
-                  className="gap-2"
+                  className="gap-2 border-2 border-gray-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all"
                 >
                   {selectedSignals.length === filteredSignals.length ? (
                     <>
@@ -800,13 +866,13 @@ export default function SignalsPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gray-50">
+                  <tr className="bg-gradient-to-r from-gray-50 to-gray-100/50">
                     <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700 w-12">
                       <input
                         type="checkbox"
                         checked={selectedSignals.length === filteredSignals.length && filteredSignals.length > 0}
                         onChange={handleSelectAll}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                       />
                     </th>
                     <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Asset & Details</th>
@@ -818,24 +884,24 @@ export default function SignalsPage() {
                     <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-200/50">
                   {filteredSignals.map((signal) => (
-                    <tr key={signal.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={signal.id} className="hover:bg-gradient-to-r hover:from-gray-50/50 hover:to-gray-100/30 transition-colors group">
                       <td className="py-5 px-6">
                         <input
                           type="checkbox"
                           checked={selectedSignals.includes(signal.id)}
                           onChange={() => handleSignalSelect(signal.id)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                         />
                       </td>
                       <td className="py-5 px-6">
                         <div>
-                          <div className="font-bold text-gray-900">{signal.asset}</div>
+                          <div className="font-bold text-gray-900 text-lg">{signal.asset}</div>
                           <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="outline" className={getCategoryColor(signal.category)}>
+                            <span className={`text-xs font-medium px-2 py-1 rounded-full bg-gradient-to-r ${getCategoryColor(signal.category)} text-white`}>
                               {signal.category}
-                            </Badge>
+                            </span>
                             <span className="text-xs text-gray-500 flex items-center gap-1">
                               <Clock className="w-3 h-3" />
                               {signal.timeframe}
@@ -852,7 +918,8 @@ export default function SignalsPage() {
                             <div className="font-medium text-gray-900">{signal.mentor_name}</div>
                             <div className="text-xs text-gray-500">Expert Mentor</div>
                             {signal.followers_count !== undefined && (
-                              <div className="text-xs text-blue-600 mt-1">
+                              <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                                <Users className="w-3 h-3" />
                                 {signal.followers_count} follower{signal.followers_count !== 1 ? 's' : ''}
                               </div>
                             )}
@@ -862,11 +929,15 @@ export default function SignalsPage() {
                         )}
                       </td>
                       <td className="py-5 px-6">
-                        <div className="space-y-1">
-                          <Badge className={getTypeColor(signal.type)}>
-                            {signal.type === 'buy' ? 'BUY' : 'SELL'}
+                        <div className="space-y-2">
+                          <Badge className={`${getTypeColor(signal.type)} font-bold shadow-lg`}>
+                            {signal.type === 'buy' ? 
+                              <ArrowUpRight className="w-4 h-4 mr-1" /> : 
+                              <ArrowDownRight className="w-4 h-4 mr-1" />
+                            }
+                            {signal.type.toUpperCase()}
                           </Badge>
-                          <Badge variant="outline" className={getRiskColor(signal.risk_level)}>
+                          <Badge variant="outline" className={`${getRiskColor(signal.risk_level)}`}>
                             <Shield className="w-3 h-3 mr-1" />
                             {signal.risk_level.charAt(0).toUpperCase() + signal.risk_level.slice(1)}
                           </Badge>
@@ -874,32 +945,39 @@ export default function SignalsPage() {
                       </td>
                       <td className="py-5 px-6">
                         <div className="space-y-1 text-sm">
-                          <div>
-                            <span className="font-medium">Entry: </span>
-                            <span className="font-bold">${signal.entry_price.toLocaleString()}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-600">Entry:</span>
+                            <span className="font-bold text-gray-900">
+                              ${signal.entry_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
                           </div>
-                          <div>
-                            <span className="font-medium text-green-600">Target: </span>
-                            <span className="font-bold text-green-600">${signal.target_price.toLocaleString()}</span>
+                          <div className="flex items-center gap-2">
+                            <ArrowUpRight className="w-3 h-3 text-emerald-500" />
+                            <span className="font-bold text-emerald-600">
+                              ${signal.target_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
                           </div>
-                          <div>
-                            <span className="font-medium text-red-600">Stop: </span>
-                            <span className="font-bold text-red-600">${signal.stop_loss.toLocaleString()}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-red-600">Stop:</span>
+                            <span className="font-bold text-red-600">
+                              ${signal.stop_loss.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
                           </div>
                         </div>
                       </td>
                       <td className="py-5 px-6">
-                        <div className="space-y-1">
-                          <Badge className={getStatusColor(signal.status)}>
+                        <div className="space-y-2">
+                          <Badge className={`${getStatusColor(signal.status)} font-bold`}>
                             {signal.status === 'published' && <Globe className="w-3 h-3 mr-1" />}
                             {signal.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
-                            {signal.status === 'draft' && <span className="mr-1">📝</span>}
+                            {signal.status === 'draft' && <Edit className="w-3 h-3 mr-1" />}
                             {signal.status === 'archived' && <Archive className="w-3 h-3 mr-1" />}
                             {signal.status.charAt(0).toUpperCase() + signal.status.slice(1)}
                           </Badge>
                           {signal.is_following && (
-                            <div className="text-xs text-green-600">
-                              ✓ Following
+                            <div className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                              <CheckCircle className="w-3 h-3" />
+                              Following
                             </div>
                           )}
                         </div>
@@ -914,15 +992,19 @@ export default function SignalsPage() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="gap-1"
+                            className="gap-1 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 rounded-lg transition-all"
                             onClick={() => setViewDetails(signal)}
                           >
-                            <Info className="w-3 h-3" />
+                            <Eye className="w-4 h-4" />
                           </Button>
                           <Button
                             size="sm"
                             variant={signal.is_following ? "outline" : "default"}
-                            className="gap-1"
+                            className={`gap-1 ${
+                              signal.is_following 
+                                ? 'border-2 border-gray-300 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700' 
+                                : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg'
+                            }`}
                             onClick={() => {
                               if (signal.is_following) {
                                 unfollowSignal(signal.id).then(handleRefresh)
@@ -942,7 +1024,7 @@ export default function SignalsPage() {
 
               {filteredSignals.length === 0 && (
                 <div className="text-center py-16">
-                  <div className="mx-auto w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+                  <div className="mx-auto w-20 h-20 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-6">
                     <Filter className="w-10 h-10 text-gray-400" />
                   </div>
                   <h3 className="text-xl font-bold text-gray-900 mb-2">No signals found</h3>
@@ -951,10 +1033,10 @@ export default function SignalsPage() {
                   </p>
                   <Button
                     variant="outline"
-                    className="gap-2"
+                    className="gap-2 border-2 border-gray-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all"
                     onClick={handleRefresh}
                   >
-                    <RefreshCw className="w-4 h-4" />
+                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                     Refresh Signals
                   </Button>
                 </div>
@@ -963,7 +1045,7 @@ export default function SignalsPage() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t">
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200/50">
                 <div className="text-sm text-gray-700">
                   Page {currentPage} of {totalPages}
                 </div>
@@ -973,6 +1055,7 @@ export default function SignalsPage() {
                     size="sm"
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage === 1}
+                    className="border-2 border-gray-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all"
                   >
                     Previous
                   </Button>
@@ -981,6 +1064,7 @@ export default function SignalsPage() {
                     size="sm"
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
+                    className="border-2 border-gray-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all"
                   >
                     Next
                   </Button>
@@ -993,87 +1077,109 @@ export default function SignalsPage() {
 
       {/* Signal Details Modal */}
       {viewDetails && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <Dialog open={!!viewDetails} onOpenChange={() => setViewDetails(null)}>
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto border-0 shadow-2xl bg-gradient-to-b from-white to-gray-50/50 z-[100]">
             <div className="p-6">
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h3 className="text-2xl font-bold text-gray-900">{viewDetails.asset}</h3>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge className={getTypeColor(viewDetails.type)}>
-                      {viewDetails.type === 'buy' ? 'BUY' : 'SELL'}
-                    </Badge>
-                    <Badge variant="outline" className={getRiskColor(viewDetails.risk_level)}>
-                      {viewDetails.risk_level.charAt(0).toUpperCase() + viewDetails.risk_level.slice(1)} Risk
-                    </Badge>
-                    <Badge variant="outline">
-                      {viewDetails.timeframe}
-                    </Badge>
+              <DialogHeader>
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                      {viewDetails.asset}
+                    </DialogTitle>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge className={`${getTypeColor(viewDetails.type)} font-bold shadow-lg`}>
+                        {viewDetails.type === 'buy' ? 
+                          <ArrowUpRight className="w-4 h-4 mr-1" /> : 
+                          <ArrowDownRight className="w-4 h-4 mr-1" />
+                        }
+                        {viewDetails.type.toUpperCase()}
+                      </Badge>
+                      <Badge variant="outline" className={`${getRiskColor(viewDetails.risk_level)}`}>
+                        <Shield className="w-3 h-3 mr-1" />
+                        {viewDetails.risk_level.charAt(0).toUpperCase() + viewDetails.risk_level.slice(1)} Risk
+                      </Badge>
+                      <Badge variant="outline">
+                        <Clock className="w-3 h-3 mr-1" />
+                        {viewDetails.timeframe}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setViewDetails(null)}
-                >
-                  ✕
-                </Button>
-              </div>
+              </DialogHeader>
 
               <div className="grid grid-cols-2 gap-6 mb-8">
                 <div className="space-y-4">
-                  <div>
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100/50 border border-gray-200">
                     <Label className="text-sm font-medium text-gray-500">Entry Price</Label>
-                    <p className="text-2xl font-bold text-gray-900">
-                      ${viewDetails.entry_price.toLocaleString()}
+                    <p className="text-2xl font-bold text-gray-900 mt-1">
+                      ${viewDetails.entry_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                   </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Target Price</Label>
-                    <p className="text-2xl font-bold text-green-600">
-                      ${viewDetails.target_price.toLocaleString()}
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-emerald-50 to-teal-50/50 border border-emerald-200">
+                    <Label className="text-sm font-medium text-emerald-700">Target Price</Label>
+                    <p className="text-2xl font-bold text-emerald-600 mt-1">
+                      ${viewDetails.target_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                   </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Stop Loss</Label>
-                    <p className="text-2xl font-bold text-red-600">
-                      ${viewDetails.stop_loss.toLocaleString()}
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-rose-50 to-red-50/50 border border-rose-200">
+                    <Label className="text-sm font-medium text-rose-700">Stop Loss</Label>
+                    <p className="text-2xl font-bold text-rose-600 mt-1">
+                      ${viewDetails.stop_loss.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <div>
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100/50 border border-gray-200">
                     <Label className="text-sm font-medium text-gray-500">Status</Label>
-                    <Badge className={getStatusColor(viewDetails.status)}>
-                      {viewDetails.status.charAt(0).toUpperCase() + viewDetails.status.slice(1)}
-                    </Badge>
+                    <div className="mt-2">
+                      <Badge className={`${getStatusColor(viewDetails.status)} font-bold`}>
+                        {viewDetails.status === 'published' && <Globe className="w-3 h-3 mr-1" />}
+                        {viewDetails.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
+                        {viewDetails.status === 'draft' && <Edit className="w-3 h-3 mr-1" />}
+                        {viewDetails.status === 'archived' && <Archive className="w-3 h-3 mr-1" />}
+                        {viewDetails.status.charAt(0).toUpperCase() + viewDetails.status.slice(1)}
+                      </Badge>
+                    </div>
                   </div>
                   {viewDetails.mentor_name && (
-                    <div>
-                      <Label className="text-sm font-medium text-gray-500">Mentor</Label>
-                      <p className="text-lg font-bold text-gray-900">{viewDetails.mentor_name}</p>
+                    <div className="p-4 rounded-lg bg-gradient-to-br from-purple-50 to-pink-50/50 border border-purple-200">
+                      <Label className="text-sm font-medium text-purple-700">Mentor</Label>
+                      <p className="text-lg font-bold text-gray-900 mt-1">{viewDetails.mentor_name}</p>
+                      {viewDetails.followers_count !== undefined && (
+                        <div className="text-sm text-purple-600 mt-2 flex items-center gap-1">
+                          <Users className="w-4 h-4" />
+                          {viewDetails.followers_count} follower{viewDetails.followers_count !== 1 ? 's' : ''}
+                        </div>
+                      )}
                     </div>
                   )}
-                  <div>
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100/50 border border-gray-200">
                     <Label className="text-sm font-medium text-gray-500">Category</Label>
-                    <Badge variant="outline" className={getCategoryColor(viewDetails.category)}>
-                      {viewDetails.category}
-                    </Badge>
+                    <div className="mt-2">
+                      <span className={`text-sm font-medium px-3 py-1.5 rounded-full bg-gradient-to-r ${getCategoryColor(viewDetails.category)} text-white`}>
+                        {viewDetails.category}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-4 border-t">
+              <div className="flex gap-3 pt-4 border-t border-gray-200">
                 <Button
                   variant="outline"
-                  className="flex-1"
+                  className="flex-1 border-2 border-gray-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all"
                   onClick={() => window.open(`/trading-chart?symbol=${viewDetails.asset}`, '_blank')}
                 >
+                  <LineChart className="w-4 h-4 mr-2" />
                   View Chart
                 </Button>
                 <Button
                   variant="default"
-                  className="flex-1"
+                  className={`flex-1 gap-2 ${
+                    viewDetails.is_following 
+                      ? 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700' 
+                      : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600'
+                  } shadow-lg`}
                   onClick={() => {
                     if (viewDetails.is_following) {
                       unfollowSignal(viewDetails.id).then(() => {
@@ -1088,12 +1194,22 @@ export default function SignalsPage() {
                     }
                   }}
                 >
-                  {viewDetails.is_following ? 'Unfollow Signal' : 'Follow Signal'}
+                  {viewDetails.is_following ? (
+                    <>
+                      <XCircle className="w-4 h-4" />
+                      Unfollow Signal
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Follow Signal
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation'; // Add this import
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -80,6 +81,9 @@ import {
   Eye as EyeIcon,
   Copy,
   CheckCheck,
+  Heart,
+  Plus,
+  ArrowLeft,
 } from 'lucide-react';
 import { Line, Bar, Pie } from 'react-chartjs-2';
 import {
@@ -199,20 +203,24 @@ interface Notification {
   action_url?: string;
 }
 
-interface Message {
+// Chat-specific interfaces (simplified for badge count only)
+interface ChatStudent {
   id: number;
-  student_id: number;
-  student_name: string;
-  student_avatar?: string;
-  content: string;
-  time: string;
-  read: boolean;
-  attachments?: string[];
+  name: string;
+}
+
+interface Conversation {
+  id: number;
+  user: ChatStudent;
+  unread_count: number;
+  has_unread: boolean;
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
 export default function MentorDashboard() {
+  const router = useRouter(); // Initialize router
+  
   const [activeTab, setActiveTab] = useState<'overview' | 'students' | 'sessions' | 'earnings' | 'reviews' | 'schedule' | 'messages' | 'settings'>('overview');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -226,7 +234,9 @@ export default function MentorDashboard() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [schedule, setSchedule] = useState<ScheduleSlot[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
+  
+  // Chat-specific states (only for unread count)
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   
   // UI states
   const [searchQuery, setSearchQuery] = useState('');
@@ -239,18 +249,15 @@ export default function MentorDashboard() {
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   
-  // Message states
-  const [messageInput, setMessageInput] = useState('');
-  const [selectedConversation, setSelectedConversation] = useState<number | null>(null);
-  
-  // Schedule states
-  const [newScheduleSlot, setNewScheduleSlot] = useState<Partial<ScheduleSlot>>({
-    day: 'Monday',
-    start_time: '09:00',
-    end_time: '17:00',
-    is_available: true,
-    recurring: true,
-  });
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Get token
   const getToken = () => {
@@ -258,6 +265,32 @@ export default function MentorDashboard() {
       return localStorage.getItem('auth_token') || '';
     }
     return '';
+  };
+
+  // Fetch conversations for unread count only
+  const fetchConversations = async () => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${API_BASE_URL}/mentor/chat/conversations`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.conversations || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  };
+
+  const refreshConversations = async () => {
+    try {
+      const convos = await fetchConversations();
+      setConversations(convos);
+    } catch (error) {
+      console.error('Error refreshing conversations:', error);
+    }
   };
 
   // Fetch all mentor data
@@ -281,7 +314,7 @@ export default function MentorDashboard() {
         reviewsRes,
         scheduleRes,
         notificationsRes,
-        messagesRes,
+        conversationsRes,
       ] = await Promise.all([
         fetch(`${API_BASE_URL}/mentor/stats`, { headers }),
         fetch(`${API_BASE_URL}/mentor/students`, { headers }),
@@ -290,10 +323,14 @@ export default function MentorDashboard() {
         fetch(`${API_BASE_URL}/mentor/reviews`, { headers }),
         fetch(`${API_BASE_URL}/mentor/schedule`, { headers }),
         fetch(`${API_BASE_URL}/mentor/notifications`, { headers }),
-        fetch(`${API_BASE_URL}/mentor/messages`, { headers }),
+        fetch(`${API_BASE_URL}/mentor/chat/conversations`, { headers }),
       ]);
 
-      // Parse responses
+      // Check for any failed requests
+      if (!statsRes.ok || !studentsRes.ok || !sessionsRes.ok || !earningsRes.ok || !reviewsRes.ok || !scheduleRes.ok || !notificationsRes.ok) {
+        throw new Error('Failed to fetch some data');
+      }
+
       const statsData = await statsRes.json();
       const studentsData = await studentsRes.json();
       const sessionsData = await sessionsRes.json();
@@ -301,273 +338,37 @@ export default function MentorDashboard() {
       const reviewsData = await reviewsRes.json();
       const scheduleData = await scheduleRes.json();
       const notificationsData = await notificationsRes.json();
-      const messagesData = await messagesRes.json();
+      const conversationsData = await conversationsRes.json();
 
-      // Set states
-      setStats(statsData.stats || getDemoStats());
-      setStudents(studentsData.students || getDemoStudents());
-      setSessions(sessionsData.sessions || getDemoSessions());
-      setEarnings(earningsData.earnings || getDemoEarnings());
-      setReviews(reviewsData.reviews || getDemoReviews());
-      setSchedule(scheduleData.schedule || getDemoSchedule());
-      setNotifications(notificationsData.notifications || getDemoNotifications());
-      setMessages(messagesData.messages || getDemoMessages());
+      setStats(statsData.stats || null);
+      setStudents(studentsData.students || []);
+      setSessions(sessionsData.sessions || []);
+      setEarnings(earningsData.earnings || []);
+      setReviews(reviewsData.reviews || []);
+      setSchedule(scheduleData.schedule || []);
+      setNotifications(notificationsData.notifications || []);
+      setConversations(conversationsData.conversations || []);
 
     } catch (error) {
       console.error('Error fetching mentor data:', error);
-      // Use demo data as fallback
-      setStats(getDemoStats());
-      setStudents(getDemoStudents());
-      setSessions(getDemoSessions());
-      setEarnings(getDemoEarnings());
-      setReviews(getDemoReviews());
-      setSchedule(getDemoSchedule());
-      setNotifications(getDemoNotifications());
-      setMessages(getDemoMessages());
+      setError('Failed to load dashboard data. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Demo data generators
-  const getDemoStats = (): MentorStats => ({
-    total_students: 156,
-    active_students: 89,
-    total_sessions: 342,
-    upcoming_sessions: 12,
-    completed_sessions: 298,
-    cancelled_sessions: 32,
-    total_earnings: 28450,
-    monthly_earnings: 4250,
-    average_rating: 4.8,
-    total_reviews: 127,
-    response_rate: 98,
-    response_time: '< 2 hours',
-    satisfaction_rate: 96,
-  });
-
-  const getDemoStudents = (): Student[] => [
-    {
-      id: 1,
-      name: 'John Smith',
-      email: 'john.smith@example.com',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop',
-      joined_at: '2024-01-15',
-      last_active: '2024-02-20',
-      total_sessions: 12,
-      completed_sessions: 10,
-      rating: 5,
-      status: 'active',
-      membership_type: 'premium',
-    },
-    {
-      id: 2,
-      name: 'Sarah Chen',
-      email: 'sarah.chen@example.com',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=32&h=32&fit=crop',
-      joined_at: '2024-02-01',
-      last_active: '2024-02-19',
-      total_sessions: 8,
-      completed_sessions: 7,
-      rating: 4,
-      status: 'active',
-      membership_type: 'pro',
-    },
-    {
-      id: 3,
-      name: 'Mike Thompson',
-      email: 'mike.thompson@example.com',
-      joined_at: '2024-01-20',
-      last_active: '2024-02-15',
-      total_sessions: 5,
-      completed_sessions: 4,
-      rating: 5,
-      status: 'inactive',
-      membership_type: 'free',
-    },
-  ];
-
-  const getDemoSessions = (): Session[] => [
-    {
-      id: 1,
-      student_id: 1,
-      student_name: 'John Smith',
-      student_avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop',
-      title: 'Advanced Trading Strategies',
-      description: 'Discussion about advanced trading strategies and risk management',
-      date: '2024-02-25',
-      time: '14:00',
-      duration: 60,
-      status: 'scheduled',
-      type: 'video',
-      price: 150,
-      payment_status: 'paid',
-    },
-    {
-      id: 2,
-      student_id: 2,
-      student_name: 'Sarah Chen',
-      student_avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=32&h=32&fit=crop',
-      title: 'Technical Analysis Basics',
-      description: 'Introduction to technical analysis and chart patterns',
-      date: '2024-02-20',
-      time: '10:00',
-      duration: 45,
-      status: 'completed',
-      type: 'video',
-      price: 100,
-      payment_status: 'paid',
-      rating: 5,
-      feedback: 'Excellent session! Very knowledgeable and patient.',
-    },
-    {
-      id: 3,
-      student_id: 3,
-      student_name: 'Mike Thompson',
-      title: 'Risk Management',
-      description: 'Understanding risk management in trading',
-      date: '2024-02-18',
-      time: '15:30',
-      duration: 30,
-      status: 'cancelled',
-      type: 'audio',
-      price: 75,
-      payment_status: 'refunded',
-    },
-  ];
-
-  const getDemoEarnings = (): Earning[] => [
-    {
-      id: 1,
-      amount: 150,
-      type: 'session',
-      status: 'paid',
-      date: '2024-02-20',
-      student_name: 'Sarah Chen',
-      session_title: 'Technical Analysis Basics',
-    },
-    {
-      id: 2,
-      amount: 50,
-      type: 'tip',
-      status: 'paid',
-      date: '2024-02-19',
-      student_name: 'John Smith',
-    },
-    {
-      id: 3,
-      amount: 200,
-      type: 'session',
-      status: 'pending',
-      date: '2024-02-18',
-      student_name: 'Emma Wilson',
-      session_title: 'Options Trading',
-    },
-  ];
-
-  const getDemoReviews = (): Review[] => [
-    {
-      id: 1,
-      student_id: 1,
-      student_name: 'John Smith',
-      student_avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop',
-      rating: 5,
-      comment: 'Excellent mentor! Very knowledgeable and explains complex concepts clearly.',
-      date: '2024-02-15',
-      session_title: 'Advanced Trading Strategies',
-      response: 'Thank you John! Glad you enjoyed the session.',
-    },
-    {
-      id: 2,
-      student_id: 2,
-      student_name: 'Sarah Chen',
-      student_avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=32&h=32&fit=crop',
-      rating: 4,
-      comment: 'Good session, very helpful. Would recommend.',
-      date: '2024-02-10',
-      session_title: 'Technical Analysis Basics',
-    },
-  ];
-
-  const getDemoSchedule = (): ScheduleSlot[] => [
-    {
-      id: 1,
-      day: 'Monday',
-      start_time: '09:00',
-      end_time: '17:00',
-      is_available: true,
-      recurring: true,
-    },
-    {
-      id: 2,
-      day: 'Wednesday',
-      start_time: '10:00',
-      end_time: '18:00',
-      is_available: true,
-      recurring: true,
-    },
-    {
-      id: 3,
-      day: 'Friday',
-      start_time: '09:00',
-      end_time: '13:00',
-      is_available: true,
-      recurring: true,
-    },
-  ];
-
-  const getDemoNotifications = (): Notification[] => [
-    {
-      id: 1,
-      type: 'session',
-      title: 'New Session Request',
-      message: 'John Smith requested a session for tomorrow at 2 PM',
-      time: '5 minutes ago',
-      read: false,
-      action_url: '/mentor/sessions',
-    },
-    {
-      id: 2,
-      type: 'review',
-      title: 'New Review',
-      message: 'Sarah Chen left you a 5-star review',
-      time: '2 hours ago',
-      read: false,
-    },
-    {
-      id: 3,
-      type: 'payment',
-      title: 'Payment Received',
-      message: 'You received $150 for a completed session',
-      time: '1 day ago',
-      read: true,
-    },
-  ];
-
-  const getDemoMessages = (): Message[] => [
-    {
-      id: 1,
-      student_id: 1,
-      student_name: 'John Smith',
-      student_avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop',
-      content: 'Hi, I have a question about the upcoming session.',
-      time: '10:30 AM',
-      read: false,
-    },
-    {
-      id: 2,
-      student_id: 2,
-      student_name: 'Sarah Chen',
-      student_avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=32&h=32&fit=crop',
-      content: 'Thanks for the great session yesterday!',
-      time: '9:15 AM',
-      read: true,
-    },
-  ];
-
   // Initial load
   useEffect(() => {
     fetchMentorData();
+  }, []);
+
+  // Periodic refresh for unread count (every 30 seconds)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshConversations();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Chart data
@@ -668,7 +469,7 @@ export default function MentorDashboard() {
 
   // Get status badge
   const getStatusBadge = (status: string) => {
-    const styles = {
+    const styles: Record<string, string> = {
       scheduled: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
       completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
       cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
@@ -682,7 +483,7 @@ export default function MentorDashboard() {
     };
     
     return (
-      <span className={`px-2 py-1 text-xs rounded-full ${styles[status as keyof typeof styles] || styles.pending}`}>
+      <span className={`px-2 py-1 text-xs rounded-full ${styles[status] || styles.pending}`}>
         {status}
       </span>
     );
@@ -707,6 +508,24 @@ export default function MentorDashboard() {
           <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600 dark:text-gray-400">Loading mentor dashboard...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full border-red-200">
+          <CardContent className="p-6 text-center">
+            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Error Loading Dashboard</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
+            <Button onClick={fetchMentorData}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -753,7 +572,7 @@ export default function MentorDashboard() {
               { id: 'earnings', label: 'Earnings', icon: DollarSign },
               { id: 'reviews', label: 'Reviews', icon: Star },
               { id: 'schedule', label: 'Schedule', icon: Clock },
-              { id: 'messages', label: 'Messages', icon: MessageSquare },
+              { id: 'messages', label: 'Messages', icon: MessageSquare, redirect: true },
               { id: 'settings', label: 'Settings', icon: Settings },
             ].map((tab) => {
               const Icon = tab.icon;
@@ -762,7 +581,13 @@ export default function MentorDashboard() {
                   key={tab.id}
                   variant="ghost"
                   size="sm"
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => {
+                    if (tab.redirect) {
+                      router.push('/mentor/chat');
+                    } else {
+                      setActiveTab(tab.id as any);
+                    }
+                  }}
                   className={`px-4 py-2 text-sm whitespace-nowrap ${
                     activeTab === tab.id
                       ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
@@ -771,9 +596,9 @@ export default function MentorDashboard() {
                 >
                   <Icon className="w-4 h-4 mr-2" />
                   {tab.label}
-                  {tab.id === 'messages' && messages.filter(m => !m.read).length > 0 && (
+                  {tab.id === 'messages' && conversations.filter(c => c.unread_count > 0).length > 0 && (
                     <Badge className="ml-2 bg-red-500 text-white">
-                      {messages.filter(m => !m.read).length}
+                      {conversations.filter(c => c.unread_count > 0).length}
                     </Badge>
                   )}
                 </Button>
@@ -826,8 +651,8 @@ export default function MentorDashboard() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-500">Total Students</p>
-                      <p className="text-3xl font-bold text-blue-600">{stats?.total_students}</p>
-                      <p className="text-xs text-emerald-600 mt-1">+12 this month</p>
+                      <p className="text-3xl font-bold text-blue-600">{stats?.total_students ?? 0}</p>
+                      <p className="text-xs text-emerald-600 mt-1">+{stats?.active_students ?? 0} active</p>
                     </div>
                     <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
                       <Users className="w-6 h-6 text-blue-600" />
@@ -841,8 +666,8 @@ export default function MentorDashboard() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-500">Total Sessions</p>
-                      <p className="text-3xl font-bold text-purple-600">{stats?.total_sessions}</p>
-                      <p className="text-xs text-emerald-600 mt-1">{stats?.upcoming_sessions} upcoming</p>
+                      <p className="text-3xl font-bold text-purple-600">{stats?.total_sessions ?? 0}</p>
+                      <p className="text-xs text-emerald-600 mt-1">{stats?.upcoming_sessions ?? 0} upcoming</p>
                     </div>
                     <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
                       <Calendar className="w-6 h-6 text-purple-600" />
@@ -871,8 +696,8 @@ export default function MentorDashboard() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-500">Average Rating</p>
-                      <p className="text-3xl font-bold text-amber-600">{stats?.average_rating}</p>
-                      <p className="text-xs text-gray-500 mt-1">{stats?.total_reviews} reviews</p>
+                      <p className="text-3xl font-bold text-amber-600">{stats?.average_rating ?? 0}</p>
+                      <p className="text-xs text-gray-500 mt-1">{stats?.total_reviews ?? 0} reviews</p>
                     </div>
                     <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center">
                       <Star className="w-6 h-6 text-amber-600 fill-amber-600" />
@@ -915,8 +740,8 @@ export default function MentorDashboard() {
                     <h3 className="font-semibold">Response Rate</h3>
                     <Activity className="w-5 h-5 text-blue-500" />
                   </div>
-                  <p className="text-3xl font-bold text-blue-600">{stats?.response_rate}%</p>
-                  <p className="text-sm text-gray-500 mt-1">Average response time: {stats?.response_time}</p>
+                  <p className="text-3xl font-bold text-blue-600">{stats?.response_rate ?? 0}%</p>
+                  <p className="text-sm text-gray-500 mt-1">Average response time: {stats?.response_time ?? 'N/A'}</p>
                 </CardContent>
               </Card>
 
@@ -926,11 +751,11 @@ export default function MentorDashboard() {
                     <h3 className="font-semibold">Satisfaction Rate</h3>
                     <ThumbsUp className="w-5 h-5 text-emerald-500" />
                   </div>
-                  <p className="text-3xl font-bold text-emerald-600">{stats?.satisfaction_rate}%</p>
+                  <p className="text-3xl font-bold text-emerald-600">{stats?.satisfaction_rate ?? 0}%</p>
                   <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                     <div 
                       className="bg-emerald-600 h-2 rounded-full" 
-                      style={{ width: `${stats?.satisfaction_rate}%` }}
+                      style={{ width: `${stats?.satisfaction_rate ?? 0}%` }}
                     ></div>
                   </div>
                 </CardContent>
@@ -989,6 +814,9 @@ export default function MentorDashboard() {
                         </div>
                       </div>
                     ))}
+                    {sessions.filter(s => s.status === 'scheduled').length === 0 && (
+                      <p className="text-sm text-gray-500 text-center py-4">No upcoming sessions</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -1036,6 +864,9 @@ export default function MentorDashboard() {
                         <p className="text-sm text-gray-600 dark:text-gray-400">{review.comment}</p>
                       </div>
                     ))}
+                    {reviews.length === 0 && (
+                      <p className="text-sm text-gray-500 text-center py-4">No reviews yet</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -1192,26 +1023,26 @@ export default function MentorDashboard() {
               <Card className="border-0 shadow-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
                 <CardContent className="p-4">
                   <p className="text-sm text-gray-500">Upcoming</p>
-                  <p className="text-2xl font-bold text-blue-600">{stats?.upcoming_sessions}</p>
+                  <p className="text-2xl font-bold text-blue-600">{stats?.upcoming_sessions ?? 0}</p>
                 </CardContent>
               </Card>
               <Card className="border-0 shadow-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
                 <CardContent className="p-4">
                   <p className="text-sm text-gray-500">Completed</p>
-                  <p className="text-2xl font-bold text-emerald-600">{stats?.completed_sessions}</p>
+                  <p className="text-2xl font-bold text-emerald-600">{stats?.completed_sessions ?? 0}</p>
                 </CardContent>
               </Card>
               <Card className="border-0 shadow-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
                 <CardContent className="p-4">
                   <p className="text-sm text-gray-500">Cancelled</p>
-                  <p className="text-2xl font-bold text-red-600">{stats?.cancelled_sessions}</p>
+                  <p className="text-2xl font-bold text-red-600">{stats?.cancelled_sessions ?? 0}</p>
                 </CardContent>
               </Card>
               <Card className="border-0 shadow-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
                 <CardContent className="p-4">
                   <p className="text-sm text-gray-500">Completion Rate</p>
                   <p className="text-2xl font-bold text-purple-600">
-                    {Math.round((stats?.completed_sessions || 0) / (stats?.total_sessions || 1) * 100)}%
+                    {stats?.total_sessions ? Math.round((stats.completed_sessions / stats.total_sessions) * 100) : 0}%
                   </p>
                 </CardContent>
               </Card>
@@ -1321,10 +1152,7 @@ export default function MentorDashboard() {
                           earning.type === 'tip' ? 'bg-green-100' : 'bg-purple-100'
                         }`}>
                           {earning.type === 'session' ? (
-                            <Calendar className={`w-5 h-5 ${
-                              earning.type === 'session' ? 'text-blue-600' :
-                              earning.type === 'tip' ? 'text-green-600' : 'text-purple-600'
-                            }`} />
+                            <Calendar className="w-5 h-5 text-blue-600" />
                           ) : earning.type === 'tip' ? (
                             <Heart className="w-5 h-5 text-green-600" />
                           ) : (
@@ -1360,7 +1188,7 @@ export default function MentorDashboard() {
                 <CardContent className="p-6">
                   <div className="flex items-center gap-4">
                     <div className="text-center">
-                      <p className="text-5xl font-bold text-amber-600">{stats?.average_rating}</p>
+                      <p className="text-5xl font-bold text-amber-600">{stats?.average_rating ?? 0}</p>
                       <div className="flex items-center gap-1 mt-2">
                         {[...Array(5)].map((_, i) => (
                           <Star
@@ -1373,7 +1201,7 @@ export default function MentorDashboard() {
                           />
                         ))}
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">{stats?.total_reviews} reviews</p>
+                      <p className="text-sm text-gray-500 mt-1">{stats?.total_reviews ?? 0} reviews</p>
                     </div>
                     <div className="flex-1">
                       {[5, 4, 3, 2, 1].map((rating) => (
@@ -1554,132 +1382,24 @@ export default function MentorDashboard() {
           </div>
         )}
 
-        {/* Messages Tab */}
+        {/* Messages Tab - Simplified redirect view */}
         {activeTab === 'messages' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-12rem)]">
-            {/* Conversations List */}
-            <Card className="border-0 shadow-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm overflow-hidden lg:col-span-1">
-              <CardHeader>
-                <CardTitle>Messages</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {messages.map((message) => (
-                    <button
-                      key={message.id}
-                      onClick={() => setSelectedConversation(message.id)}
-                      className={`w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-                        selectedConversation === message.id ? 'bg-blue-50 dark:bg-gray-700' : ''
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                            {message.student_avatar ? (
-                              <img src={message.student_avatar} alt={message.student_name} className="w-10 h-10 rounded-full object-cover" />
-                            ) : (
-                              <User className="w-5 h-5 text-white" />
-                            )}
-                          </div>
-                          {!message.read && (
-                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full"></div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-semibold text-sm truncate">{message.student_name}</h4>
-                            <span className="text-xs text-gray-500">{message.time}</span>
-                          </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                            {message.content}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Chat Window */}
-            <Card className="border-0 shadow-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm overflow-hidden lg:col-span-2">
-              {selectedConversation ? (
-                <>
-                  <CardHeader className="border-b border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                          {messages.find(m => m.id === selectedConversation)?.student_avatar ? (
-                            <img 
-                              src={messages.find(m => m.id === selectedConversation)?.student_avatar} 
-                              alt=""
-                              className="w-10 h-10 rounded-full object-cover"
-                            />
-                          ) : (
-                            <User className="w-5 h-5 text-white" />
-                          )}
-                        </div>
-                        <div>
-                          <h3 className="font-semibold">
-                            {messages.find(m => m.id === selectedConversation)?.student_name}
-                          </h3>
-                          <p className="text-xs text-emerald-600">Online</p>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="flex-1 p-0 flex flex-col h-[500px]">
-                    <div className="flex-1 overflow-y-auto p-4">
-                      {/* Messages would go here */}
-                      <div className="flex justify-start mb-3">
-                        <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl rounded-bl-none px-4 py-2 max-w-[70%]">
-                          <p className="text-sm">Hi, I have a question about the upcoming session.</p>
-                          <span className="text-xs text-gray-500 mt-1 block">10:30 AM</span>
-                        </div>
-                      </div>
-                      <div className="flex justify-end mb-3">
-                        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl rounded-br-none px-4 py-2 max-w-[70%]">
-                          <p className="text-sm">Sure, what would you like to know?</p>
-                          <span className="text-xs text-blue-200 mt-1 block">10:32 AM</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon">
-                          <Paperclip className="w-5 h-5" />
-                        </Button>
-                        <Input
-                          placeholder="Type your message..."
-                          className="flex-1"
-                          value={messageInput}
-                          onChange={(e) => setMessageInput(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && setMessageInput('')}
-                        />
-                        <Button variant="ghost" size="icon">
-                          <Smile className="w-5 h-5" />
-                        </Button>
-                        <Button className="bg-gradient-to-r from-blue-600 to-purple-600">
-                          <Send className="w-5 h-5" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </>
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
-                      Select a conversation
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      Choose a student to start messaging
-                    </p>
-                  </div>
-                </div>
-              )}
-            </Card>
+          <div className="flex items-center justify-center h-96">
+            <div className="text-center">
+              <MessageSquare className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                Messages
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Redirecting to dedicated chat page...
+              </p>
+              <Button
+                onClick={() => router.push('/mentor/chat')}
+                className="bg-gradient-to-r from-blue-600 to-purple-600"
+              >
+                Go to Chat
+              </Button>
+            </div>
           </div>
         )}
 

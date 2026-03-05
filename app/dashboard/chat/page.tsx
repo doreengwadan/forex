@@ -472,37 +472,46 @@ export default function ChatPage() {
   };
 
   // Upload files to server
-  const uploadFiles = async (files: File[]): Promise<Attachment[]> => {
-    if (useDemoMode) {
-      return files.map(file => ({
-        id: `file-${Date.now()}-${Math.random()}`,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        url: URL.createObjectURL(file),
-        thumbnail: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined
-      }));
+  
+  // Replace the existing uploadFiles function with this
+const uploadFiles = async (files: File[]): Promise<any[]> => {
+  try {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      throw new Error('No authentication token found');
     }
 
-    const token = getToken();
     const formData = new FormData();
-    files.forEach(file => formData.append('attachments[]', file));
-
-    const response = await fetch(`${API_BASE_URL}/chat/upload`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: formData
+    files.forEach((file, index) => {
+      formData.append(`files[${index}]`, file);
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      return data.attachments;
-    }
-    throw new Error('Failed to upload files');
-  };
+    const response = await fetch('http://localhost:8000/api/chat/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        // Don't set Content-Type - let browser set it with boundary for multipart/form-data
+      },
+      body: formData,
+      credentials: 'include'
+    });
 
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to upload files');
+    }
+
+    if (data.success && data.attachments) {
+      return data.attachments.map((att: any) => att.url); // Return array of URLs
+    }
+    
+    throw new Error(data.message || 'Upload failed');
+  } catch (err) {
+    console.error('Error uploading files:', err);
+    throw err;
+  }
+};
   // Send message with attachments
   const sendMessageWithAttachments = async (content: string, attachments: File[]) => {
     if ((!content.trim() && attachments.length === 0) || !selectedConversation || isSending) return;

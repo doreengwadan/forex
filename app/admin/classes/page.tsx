@@ -35,19 +35,9 @@ import {
   UserPlus,
   Copy,
   MessageSquare,
-  Upload,
   FileText,
-  Image,
-  File,
-  FolderOpen,
-  Link,
-  Folder,
-  FileVideo,
-  FileAudio,
-  FileImage,
-  FileArchive,
-  Plus,
-  FileUp
+  Link2,
+  Upload
 } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import {
@@ -74,63 +64,18 @@ import {
   SelectValue,
 } from '../../components/ui/Select'
 import { Textarea } from '../../components/ui/Textarea'
-import { Switch } from '../../components/ui/Switch'
 import { toast } from 'react-hot-toast'
+import { Class, ClassForm, Stats, ClassStatus, ClassType } from '../../types/class'
 
-// Types
-interface Class {
+// --- NEW: Resource type definition ---
+interface Resource {
   id: number
-  title: string
-  instructor: string
-  date: string
-  time: string
-  duration: string
-  maxAttendees: number
-  attendees: number
-  type: 'live' | 'recorded'
-  category: string
-  description: string | null
-  tags: string[]
-  status: 'scheduled' | 'ongoing' | 'completed' | 'cancelled' | 'published'
-  recordingUrl: string | null
-  recordSession?: boolean
-  recordingQuality?: 'low' | 'medium' | 'high'
-  created_at: string
-  updated_at: string
-}
-
-interface ClassForm {
-  title: string
-  instructor: string
-  date: string
-  time: string
-  duration: string
-  maxAttendees: string
-  type: 'live' | 'recorded'
-  category: string
-  description: string
-  tags: string[]
-  recordingUrl: string
-  recordSession: boolean
-  recordingQuality: 'low' | 'medium' | 'high'
-  resources?: any[]
-}
-
-interface Stats {
-  total: number
-  live: number
-  recorded: number
-  upcoming: number
-  participants: number
-}
-
-interface LearningResource {
-  id: number
+  class_id: number
   name: string
-  size: number
-  type: string
+  type: 'file' | 'link'
   url: string
-  uploadedAt?: string
+  size?: number
+  uploaded_at: string
 }
 
 // Import Agora SDK only on client side
@@ -152,9 +97,6 @@ const statuses = ['All', 'scheduled', 'ongoing', 'completed', 'cancelled', 'publ
 const classTypes = ['All', 'live', 'recorded']
 const tagOptions = ['JavaScript', 'React', 'Python', 'Web Development', 'Data Science', 'AI', 'UI/UX', 'Beginner', 'Advanced', 'Trading', 'Forex', 'Stocks', 'Crypto']
 
-// Resource types
-const resourceTypes = ['document', 'video', 'audio', 'image', 'presentation', 'spreadsheet', 'archive', 'other']
-
 export default function AdminClassesPage() {
   const [classes, setClasses] = useState<Class[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -166,15 +108,24 @@ export default function AdminClassesPage() {
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showScheduleDialog, setShowScheduleDialog] = useState(false)
   const [showLiveClassDialog, setShowLiveClassDialog] = useState(false)
-  const [showResourcesDialog, setShowResourcesDialog] = useState(false)
   const [selectedClass, setSelectedClass] = useState<Class | null>(null)
   const [tagInput, setTagInput] = useState('')
   const [showTagSuggestions, setShowTagSuggestions] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isUploadingResources, setIsUploadingResources] = useState(false)
   const [liveClassData, setLiveClassData] = useState<any>(null)
-  const [classResources, setClassResources] = useState<LearningResource[]>([])
-  
+
+  // --- NEW: Resources state ---
+  const [resources, setResources] = useState<Resource[]>([])
+  const [showResourceDialog, setShowResourceDialog] = useState(false)
+  const [uploadingResource, setUploadingResource] = useState(false)
+  const [resourceForm, setResourceForm] = useState({
+    type: 'file' as 'file' | 'link',
+    name: '',
+    file: null as File | null,
+    link: ''
+  })
+  const [selectedResource, setSelectedResource] = useState<Resource | null>(null)
+
   // Agora states
   const [isInLiveClass, setIsInLiveClass] = useState(false)
   const [isAudioMuted, setIsAudioMuted] = useState(false)
@@ -183,11 +134,6 @@ export default function AdminClassesPage() {
   const [remoteUsers, setRemoteUsers] = useState<{uid: string | number, hasVideo: boolean, hasAudio: boolean}[]>([])
   const [channelName, setChannelName] = useState<string>('')
   const [agoraToken, setAgoraToken] = useState<string>('')
-  
-  // Recording states
-  const [isRecording, setIsRecording] = useState(false)
-  const [recordingTime, setRecordingTime] = useState(0)
-  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null)
   
   // Agora refs
   const agoraClientRef = useRef<any>(null)
@@ -217,11 +163,121 @@ export default function AdminClassesPage() {
     category: 'Programming',
     description: '',
     tags: [],
-    recordingUrl: '',
-    recordSession: false,
-    recordingQuality: 'high',
-    resources: []
+    recordingUrl: ''
   })
+
+  // --- NEW: Resources API functions ---
+  const fetchResources = async (classId: number) => {
+    try {
+      const token = localStorage.getItem('auth_token')
+      if (!token) return
+
+      const response = await fetch(`${API_BASE_URL}/admin/classes/${classId}/resources`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setResources(data.data || data)
+      } else {
+        toast.error('Failed to load resources')
+      }
+    } catch (error) {
+      console.error('Error fetching resources:', error)
+      toast.error('Error loading resources')
+    }
+  }
+
+  const uploadResource = async (classId: number, file: File, name: string) => {
+    setUploadingResource(true)
+    try {
+      const token = localStorage.getItem('auth_token')
+      if (!token) throw new Error('No auth token')
+
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('name', name)
+      formData.append('class_id', classId.toString())
+
+      const response = await fetch(`${API_BASE_URL}/admin/classes/${classId}/upload-resources`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        toast.success('Resource uploaded successfully')
+        await fetchResources(classId)
+        return true
+      } else {
+        const error = await response.json()
+        toast.error(error.message || 'Upload failed')
+        return false
+      }
+    } catch (error) {
+      console.error('Error uploading resource:', error)
+      toast.error('Failed to upload resource')
+      return false
+    } finally {
+      setUploadingResource(false)
+    }
+  }
+
+  const addLinkResource = async (classId: number, name: string, link: string) => {
+    try {
+      const token = localStorage.getItem('auth_token')
+      if (!token) throw new Error('No auth token')
+
+      const response = await fetch(`${API_BASE_URL}/admin/classes/${classId}/resources/link`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name, link })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        toast.success('Link added successfully')
+        await fetchResources(classId)
+        return true
+      } else {
+        const error = await response.json()
+        toast.error(error.message || 'Failed to add link')
+        return false
+      }
+    } catch (error) {
+      console.error('Error adding link:', error)
+      toast.error('Failed to add link')
+      return false
+    }
+  }
+
+  const deleteResource = async (resourceId: number, classId: number) => {
+    try {
+      const token = localStorage.getItem('auth_token')
+      if (!token) throw new Error('No auth token')
+
+      const response = await fetch(`${API_BASE_URL}/admin/classes/resources/${resourceId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      if (response.ok) {
+        toast.success('Resource deleted')
+        await fetchResources(classId)
+        return true
+      } else {
+        toast.error('Failed to delete resource')
+        return false
+      }
+    } catch (error) {
+      console.error('Error deleting resource:', error)
+      toast.error('Error deleting resource')
+      return false
+    }
+  }
 
   // Initialize Agora RTC client
   const initAgoraClient = () => {
@@ -437,11 +493,6 @@ export default function AdminClassesPage() {
   // Leave Agora channel
   const leaveAgoraChannel = async () => {
     try {
-      // Stop recording if active
-      if (isRecording) {
-        await stopRecording()
-      }
-      
       // Stop and close local tracks
       if (localAudioTrackRef.current) {
         localAudioTrackRef.current.stop()
@@ -582,107 +633,6 @@ export default function AdminClassesPage() {
     }
   }
 
-  // Start recording
-  const startRecording = async () => {
-    try {
-      if (!selectedClass) {
-        toast.error('No class selected')
-        return
-      }
-      
-      const token = localStorage.getItem('auth_token')
-      if (!token) {
-        toast.error('Authentication required')
-        return
-      }
-
-      const response = await fetch(`${API_BASE_URL}/admin/classes/${selectedClass.id}/start-recording`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          channel_name: channelName,
-          quality: classForm.recordingQuality
-        }),
-      })
-
-      if (response.ok) {
-        setIsRecording(true)
-        setRecordingTime(0)
-        
-        // Start timer
-        recordingTimerRef.current = setInterval(() => {
-          setRecordingTime(prev => prev + 1)
-        }, 1000)
-        
-        toast.success('Recording started')
-      } else {
-        const errorData = await response.json()
-        toast.error(errorData.message || 'Failed to start recording')
-      }
-    } catch (error) {
-      console.error('Error starting recording:', error)
-      toast.error('Failed to start recording')
-    }
-  }
-
-  // Stop recording
-  const stopRecording = async () => {
-    try {
-      if (!selectedClass || !isRecording) return
-      
-      const token = localStorage.getItem('auth_token')
-      if (!token) {
-        toast.error('Authentication required')
-        return
-      }
-
-      const response = await fetch(`${API_BASE_URL}/admin/classes/${selectedClass.id}/stop-recording`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          channel_name: channelName
-        }),
-      })
-
-      if (response.ok) {
-        setIsRecording(false)
-        
-        // Clear timer
-        if (recordingTimerRef.current) {
-          clearInterval(recordingTimerRef.current)
-          recordingTimerRef.current = null
-        }
-        
-        toast.success('Recording stopped and saved')
-        
-        // Refresh classes to get updated recording URL
-        fetchClasses()
-      } else {
-        const errorData = await response.json()
-        toast.error(errorData.message || 'Failed to stop recording')
-      }
-    } catch (error) {
-      console.error('Error stopping recording:', error)
-      toast.error('Failed to stop recording')
-    }
-  }
-
-  // Format recording time
-  const formatRecordingTime = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600)
-    const mins = Math.floor((seconds % 3600) / 60)
-    const secs = seconds % 60
-    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-  }
-
   // Start a live class
   const startLiveClass = async (classItem: Class) => {
     try {
@@ -704,7 +654,7 @@ export default function AdminClassesPage() {
     }
   }
 
-  // Join as instructor
+  // Join as instructor (start the class)
   const joinAsInstructor = async () => {
     if (!selectedClass) {
       toast.error('No class selected')
@@ -725,11 +675,6 @@ export default function AdminClassesPage() {
       
       // Update class status to ongoing
       await updateClassStatus(selectedClass.id, 'ongoing')
-      
-      // Start recording if enabled
-      if (classForm.recordSession) {
-        setTimeout(() => startRecording(), 2000) // Start recording after 2 seconds
-      }
       
     } catch (error) {
       console.error('Error joining as instructor:', error)
@@ -780,124 +725,6 @@ export default function AdminClassesPage() {
       toast.error('Failed to connect to server')
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  // Fetch class resources
-  const fetchClassResources = async (classId: number) => {
-    try {
-      const token = localStorage.getItem('auth_token')
-      if (!token) return
-
-      const response = await fetch(`${API_BASE_URL}/admin/classes/${classId}/resources`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setClassResources(data.data || data)
-      }
-    } catch (error) {
-      console.error('Error fetching resources:', error)
-    }
-  }
-
-  // Upload learning resources
-  const uploadResources = async (classId: number, resources: File[]) => {
-    try {
-      setIsUploadingResources(true)
-      const token = localStorage.getItem('auth_token')
-      if (!token) {
-        toast.error('Authentication required')
-        return false
-      }
-
-      const formData = new FormData()
-      resources.forEach(file => {
-        formData.append('resources[]', file)
-      })
-
-      const response = await fetch(`${API_BASE_URL}/admin/classes/${classId}/upload-resources`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        toast.success(data.message || 'Resources uploaded successfully')
-        
-        // Refresh resources
-        fetchClassResources(classId)
-        
-        // Update class form resources
-        const newResources = resources.map(file => ({
-          name: file.name,
-          size: file.size,
-          type: getFileType(file),
-          url: URL.createObjectURL(file) // Temporary URL for preview
-        }))
-        
-        setClassForm(prev => ({
-          ...prev,
-          resources: [...(prev.resources || []), ...newResources]
-        }))
-        
-        return true
-      } else {
-        const errorData = await response.json()
-        toast.error(errorData.message || 'Failed to upload resources')
-        return false
-      }
-    } catch (error) {
-      console.error('Error uploading resources:', error)
-      toast.error('Failed to upload resources')
-      return false
-    } finally {
-      setIsUploadingResources(false)
-    }
-  }
-
-  // Delete resource
-  const deleteResource = async (classId: number, resourceId: number) => {
-    try {
-      const token = localStorage.getItem('auth_token')
-      if (!token) {
-        toast.error('Authentication required')
-        return false
-      }
-
-      const response = await fetch(`${API_BASE_URL}/admin/classes/${classId}/resources/${resourceId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        toast.success(data.message || 'Resource deleted successfully')
-        
-        // Refresh resources
-        fetchClassResources(classId)
-        
-        return true
-      } else {
-        const errorData = await response.json()
-        toast.error(errorData.message || 'Failed to delete resource')
-        return false
-      }
-    } catch (error) {
-      console.error('Error deleting resource:', error)
-      toast.error('Failed to delete resource')
-      return false
     }
   }
 
@@ -954,8 +781,6 @@ export default function AdminClassesPage() {
         description: formData.description,
         tags: formData.tags,
         recording_url: formData.recordingUrl || null,
-        record_session: formData.recordSession || false,
-        recording_quality: formData.recordingQuality || 'high',
         status: formData.type === 'recorded' ? 'published' : 'scheduled'
       }
 
@@ -972,16 +797,6 @@ export default function AdminClassesPage() {
       if (response.ok) {
         const data = await response.json()
         toast.success(data.message || (classId ? 'Class updated successfully' : 'Class created successfully'))
-        
-        // Upload resources if any
-        if (formData.resources && formData.resources.length > 0) {
-          const classIdToUse = classId || data.data?.id || data.id
-          if (classIdToUse) {
-            // Handle resource uploads here if you have actual files
-            // This would require additional implementation for file uploads
-          }
-        }
-        
         fetchClasses()
         fetchStats()
         return true
@@ -1040,7 +855,7 @@ export default function AdminClassesPage() {
   }
 
   // Update class status
-  const updateClassStatus = async (id: number, status: string) => {
+  const updateClassStatus = async (id: number, status: ClassStatus) => {
     try {
       const token = localStorage.getItem('auth_token')
       if (!token) {
@@ -1073,71 +888,6 @@ export default function AdminClassesPage() {
       toast.error('Failed to connect to server')
       return false
     }
-  }
-
-  // Helper functions for file handling
-  const getFileType = (file: File): string => {
-    if (file.type.startsWith('video/')) return 'video'
-    if (file.type.startsWith('audio/')) return 'audio'
-    if (file.type.startsWith('image/')) return 'image'
-    if (file.type.includes('pdf')) return 'document'
-    if (file.type.includes('presentation') || file.type.includes('powerpoint') || file.type.includes('ms-powerpoint')) return 'presentation'
-    if (file.type.includes('spreadsheet') || file.type.includes('excel') || file.type.includes('ms-excel')) return 'spreadsheet'
-    if (file.type.includes('zip') || file.type.includes('compressed')) return 'archive'
-    return 'other'
-  }
-
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes'
-    const k = 1024
-    const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-  }
-
-  const getFileIcon = (type: string) => {
-    switch (type) {
-      case 'video': return <FileVideo className="w-5 h-5 text-blue-500" />
-      case 'audio': return <FileAudio className="w-5 h-5 text-green-500" />
-      case 'image': return <FileImage className="w-5 h-5 text-purple-500" />
-      case 'document': return <FileText className="w-5 h-5 text-orange-500" />
-      case 'presentation': return <File className="w-5 h-5 text-red-500" />
-      case 'spreadsheet': return <File className="w-5 h-5 text-green-600" />
-      case 'archive': return <FileArchive className="w-5 h-5 text-gray-500" />
-      default: return <File className="w-5 h-5 text-gray-500" />
-    }
-  }
-
-  const handleResourceUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files || files.length === 0) return
-    
-    const newResources = Array.from(files).map(file => ({
-      name: file.name,
-      size: file.size,
-      type: getFileType(file),
-      url: URL.createObjectURL(file)
-    }))
-    
-    setClassForm(prev => ({
-      ...prev,
-      resources: [...(prev.resources || []), ...newResources]
-    }))
-    
-    toast.success(`${files.length} file(s) added`)
-  }
-
-  const removeResource = (index: number) => {
-    setClassForm(prev => ({
-      ...prev,
-      resources: prev.resources?.filter((_, i) => i !== index) || []
-    }))
-  }
-
-  const handleViewResources = (cls: Class) => {
-    setSelectedClass(cls)
-    fetchClassResources(cls.id)
-    setShowResourcesDialog(true)
   }
 
   // Load data on component mount
@@ -1202,10 +952,7 @@ export default function AdminClassesPage() {
       category: cls.category,
       description: cls.description || '',
       tags: cls.tags || [],
-      recordingUrl: cls.recordingUrl || '',
-      recordSession: cls.recordSession || false,
-      recordingQuality: cls.recordingQuality || 'high',
-      resources: []
+      recordingUrl: cls.recordingUrl || ''
     })
     setShowEditDialog(true)
   }
@@ -1272,10 +1019,7 @@ export default function AdminClassesPage() {
       category: 'Programming',
       description: '',
       tags: [],
-      recordingUrl: '',
-      recordSession: false,
-      recordingQuality: 'high',
-      resources: []
+      recordingUrl: ''
     })
     setSelectedClass(null)
     setTagInput('')
@@ -1296,8 +1040,8 @@ export default function AdminClassesPage() {
     })
   }
 
-  const getStatusBadge = (status: string): string => {
-    const variants: Record<string, string> = {
+  const getStatusBadge = (status: ClassStatus): string => {
+    const variants: Record<ClassStatus, string> = {
       scheduled: 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white',
       ongoing: 'bg-gradient-to-r from-emerald-500 to-green-500 text-white',
       completed: 'bg-gradient-to-r from-gray-600 to-gray-700 text-white',
@@ -1307,7 +1051,7 @@ export default function AdminClassesPage() {
     return variants[status] || 'bg-gray-100 text-gray-800'
   }
 
-  const getTypeBadge = (type: string): string => {
+  const getTypeBadge = (type: ClassType): string => {
     return type === 'live' 
       ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white' 
       : 'bg-gradient-to-r from-indigo-500 to-blue-600 text-white'
@@ -1343,6 +1087,7 @@ export default function AdminClassesPage() {
           <p className="text-gray-600 mt-2">Manage all live and recorded classes</p>
         </div>
         <div className="flex items-center gap-2">
+         
           <Button 
             className="gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-200"
             onClick={() => {
@@ -1482,12 +1227,6 @@ export default function AdminClassesPage() {
                   <h3 className="font-bold text-gray-900">{selectedClass?.title}</h3>
                   <p className="text-sm text-gray-600">Participants: {remoteUsers.length + 1}</p>
                 </div>
-                {isRecording && (
-                  <div className="flex items-center gap-2 bg-gradient-to-r from-rose-500 to-red-500 text-white px-3 py-1 rounded-full">
-                    <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                    <span className="text-sm font-medium">REC {formatRecordingTime(recordingTime)}</span>
-                  </div>
-                )}
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -1516,16 +1255,6 @@ export default function AdminClassesPage() {
                   {isScreenSharing ? <MonitorOff className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}
                   {isScreenSharing ? 'Stop Share' : 'Share Screen'}
                 </Button>
-                {classForm.recordSession && (
-                  <Button
-                    variant={isRecording ? "destructive" : "outline"}
-                    size="sm"
-                    onClick={isRecording ? stopRecording : startRecording}
-                    className="gap-2"
-                  >
-                    {isRecording ? 'Stop Recording' : 'Start Recording'}
-                  </Button>
-                )}
                 <Button
                   variant="destructive"
                   size="sm"
@@ -1783,9 +1512,11 @@ export default function AdminClassesPage() {
                                 variant="outline"
                                 size="sm"
                                 className="gap-1 border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                                onClick={() => handleViewResources(cls)}
+                                onClick={() => {
+                                  toast.success(`Viewing details for ${cls.title}`)
+                                }}
                               >
-                                <FolderOpen className="w-3 h-3" />
+                                <Eye className="w-3 h-3" />
                               </Button>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -1798,6 +1529,18 @@ export default function AdminClassesPage() {
                                     <Edit className="w-4 h-4 mr-2 text-gray-500" />
                                     Edit Class
                                   </DropdownMenuItem>
+                                  {/* --- NEW: Manage Resources item --- */}
+                                  <DropdownMenuItem 
+                                    onClick={() => {
+                                      setSelectedClass(cls)
+                                      fetchResources(cls.id)
+                                      setShowResourceDialog(true)
+                                    }}
+                                    className="cursor-pointer"
+                                  >
+                                    <FileText className="w-4 h-4 mr-2 text-blue-500" />
+                                    Manage Resources
+                                  </DropdownMenuItem>
                                   {cls.recordingUrl && (
                                     <DropdownMenuItem 
                                       onClick={() => window.open(cls.recordingUrl!, '_blank')}
@@ -1807,13 +1550,6 @@ export default function AdminClassesPage() {
                                       View Recording
                                     </DropdownMenuItem>
                                   )}
-                                  <DropdownMenuItem 
-                                    onClick={() => handleViewResources(cls)}
-                                    className="cursor-pointer"
-                                  >
-                                    <FolderOpen className="w-4 h-4 mr-2 text-emerald-500" />
-                                    View Resources
-                                  </DropdownMenuItem>
                                   <DropdownMenuItem 
                                     onClick={() => toast.success('Attendance downloaded')}
                                     className="cursor-pointer"
@@ -1912,49 +1648,6 @@ export default function AdminClassesPage() {
                 <p className="text-sm text-gray-500">
                   Share this link with your students. They can join the class using this link.
                 </p>
-              </div>
-
-              {/* Recording Settings */}
-              <div className="space-y-4 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                      <Video className="w-4 h-4" />
-                      Record Live Session
-                    </label>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Automatically record this live class for later viewing
-                    </p>
-                  </div>
-                  <Switch
-                    checked={classForm.recordSession}
-                    onCheckedChange={(checked) => setClassForm({...classForm, recordSession: checked})}
-                  />
-                </div>
-                
-                {classForm.recordSession && (
-                  <div className="space-y-3 pl-4 border-l-2 border-blue-300">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Recording Quality</label>
-                      <Select 
-                        value={classForm.recordingQuality} 
-                        onValueChange={(value) => setClassForm({...classForm, recordingQuality: value as 'low' | 'medium' | 'high'})}
-                      >
-                        <SelectTrigger className="border-2 border-gray-200">
-                          <SelectValue placeholder="Select quality" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">Low (360p)</SelectItem>
-                          <SelectItem value="medium">Medium (720p)</SelectItem>
-                          <SelectItem value="high">High (1080p)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-gray-500">
-                        Higher quality recordings take more storage space
-                      </p>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Camera and Mic Preview */}
@@ -2088,7 +1781,7 @@ export default function AdminClassesPage() {
                       </div>
                       {/* Students */}
                       {remoteUsers.map(user => (
-                        <div key={String(user.uid)} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
+                        <div key={user.uid} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 bg-gradient-to-r from-gray-500 to-gray-600 rounded-full flex items-center justify-center">
                               <User className="w-4 h-4 text-white" />
@@ -2173,16 +1866,6 @@ export default function AdminClassesPage() {
                       {isScreenSharing ? <MonitorOff className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}
                       {isScreenSharing ? 'Stop Share' : 'Share Screen'}
                     </Button>
-                    {classForm.recordSession && (
-                      <Button
-                        variant={isRecording ? "destructive" : "outline"}
-                        size="sm"
-                        onClick={isRecording ? stopRecording : startRecording}
-                        className="gap-2"
-                      >
-                        {isRecording ? `Stop REC (${formatRecordingTime(recordingTime)})` : 'Start Recording'}
-                      </Button>
-                    )}
                   </div>
                 </div>
                 <Button 
@@ -2199,48 +1882,127 @@ export default function AdminClassesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Resources Dialog */}
-      <Dialog open={showResourcesDialog} onOpenChange={setShowResourcesDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto border-0 shadow-2xl">
+      {/* --- NEW: Resources Dialog --- */}
+      <Dialog open={showResourceDialog} onOpenChange={setShowResourceDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto border-0 shadow-2xl">
           <DialogHeader className="pb-4 border-b">
             <DialogTitle className="text-xl bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-              Learning Resources - {selectedClass?.title}
+              Manage Resources
             </DialogTitle>
             <DialogDescription>
-              Manage videos, audio recordings, and other learning materials for this class
+              Add files or links for students in <span className="font-semibold">{selectedClass?.title}</span>
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-6 py-4">
-            {/* Upload Section */}
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-indigo-500 transition-colors">
-              <input
-                type="file"
-                id="resource-upload-dialog"
-                multiple
-                accept=".pdf,.doc,.docx,.ppt,.pptx,.mp4,.mp3,.mov,.avi,.mkv,.jpg,.jpeg,.png,.zip"
-                onChange={handleResourceUpload}
-                className="hidden"
-                disabled={isUploadingResources}
-              />
-              <label htmlFor="resource-upload-dialog" className="cursor-pointer">
-                <div className="flex flex-col items-center gap-2">
-                  {isUploadingResources ? (
-                    <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-                  ) : (
-                    <Upload className="w-12 h-12 text-gray-400" />
-                  )}
-                  <p className="font-medium text-gray-700">Upload Learning Resources</p>
-                  <p className="text-sm text-gray-500">
-                    Drag & drop files or click to browse (PDFs, Videos, Audio, Presentations, Images, etc.)
-                  </p>
+            {/* Resource List */}
+            <div className="space-y-3">
+              <h3 className="font-medium text-gray-700">Current Resources</h3>
+              {resources.length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 rounded-lg">
+                  <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">No resources yet</p>
+                  <p className="text-sm text-gray-400">Upload a file or add a link below</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                  {resources.map(res => (
+                    <div key={res.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {res.type === 'file' ? (
+                          <FileText className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                        ) : (
+                          <Link2 className="w-5 h-5 text-purple-500 flex-shrink-0" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-gray-900 truncate">{res.name}</p>
+                          <p className="text-xs text-gray-500 truncate">{res.url}</p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-2 flex-shrink-0"
+                        onClick={async () => {
+                          if (await deleteResource(res.id, selectedClass!.id)) {
+                            setResources(resources.filter(r => r.id !== res.id))
+                          }
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Add Resource Form */}
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-700 mb-3">Add New Resource</h3>
+              <div className="flex gap-2 mb-4">
+                <Button
+                  variant={resourceForm.type === 'file' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setResourceForm({ ...resourceForm, type: 'file', file: null, link: '' })}
+                  className={resourceForm.type === 'file' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  File
+                </Button>
+                <Button
+                  variant={resourceForm.type === 'link' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setResourceForm({ ...resourceForm, type: 'link', file: null, link: '' })}
+                  className={resourceForm.type === 'link' ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                >
+                  <Link2 className="w-4 h-4 mr-2" />
+                  Link
+                </Button>
+              </div>
+
+              {resourceForm.type === 'file' ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Resource Name</label>
+                    <Input
+                      value={resourceForm.name}
+                      onChange={(e) => setResourceForm({ ...resourceForm, name: e.target.value })}
+                      placeholder="e.g., Class Slides"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">File</label>
+                    <Input
+                      type="file"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          if (file.size > 10 * 1024 * 1024) {
+                            toast.error('File size must be less than 10MB')
+                            return
+                          }
+                          setResourceForm({ ...resourceForm, file })
+                        }
+                      }}
+                      className="mt-1"
+                      accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.mp4,.zip"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Max 10MB. Accepted: PDF, Word, PowerPoint, Excel, images, video, ZIP</p>
+                  </div>
                   <Button
-                    type="button"
-                    variant="outline"
-                    className="mt-2"
-                    disabled={isUploadingResources}
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    disabled={!resourceForm.name.trim() || !resourceForm.file || uploadingResource}
+                    onClick={async () => {
+                      if (!selectedClass) return
+                      const success = await uploadResource(selectedClass.id, resourceForm.file!, resourceForm.name)
+                      if (success) {
+                        setResourceForm({ type: 'file', name: '', file: null, link: '' })
+                      }
+                    }}
                   >
-                    {isUploadingResources ? (
+                    {uploadingResource ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                         Uploading...
@@ -2248,130 +2010,52 @@ export default function AdminClassesPage() {
                     ) : (
                       <>
                         <Upload className="w-4 h-4 mr-2" />
-                        Browse Files
+                        Upload File
                       </>
                     )}
                   </Button>
                 </div>
-              </label>
-            </div>
-
-            {/* Resources List */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-gray-900">Resources ({classResources.length})</h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => selectedClass && fetchClassResources(selectedClass.id)}
-                  className="gap-2"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Refresh
-                </Button>
-              </div>
-              
-              {classResources.length === 0 ? (
-                <div className="text-center py-12">
-                  <FolderOpen className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No resources yet</h3>
-                  <p className="text-gray-600">Upload learning materials for this class</p>
-                </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {classResources.map((resource, index) => (
-                    <div key={index} className="border-2 border-gray-200 rounded-lg p-4 hover:border-indigo-300 transition-colors">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          {getFileIcon(resource.type)}
-                          <div>
-                            <p className="font-medium text-gray-900 truncate max-w-[200px]">{resource.name}</p>
-                            <p className="text-xs text-gray-500">
-                              {resource.size ? formatFileSize(resource.size) : 'Unknown size'} • {resource.type}
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => selectedClass && deleteResource(selectedClass.id, resource.id)}
-                          disabled={isUploadingResources}
-                        >
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </Button>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => window.open(resource.url, '_blank')}
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          View
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => window.open(resource.url, '_blank')}
-                        >
-                          <Download className="w-4 h-4 mr-1" />
-                          Download
-                        </Button>
-                      </div>
-                      {resource.uploadedAt && (
-                        <p className="text-xs text-gray-500 mt-3">
-                          Uploaded: {new Date(resource.uploadedAt).toLocaleDateString()}
-                        </p>
-                      )}
-                    </div>
-                  ))}
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Link Name</label>
+                    <Input
+                      value={resourceForm.name}
+                      onChange={(e) => setResourceForm({ ...resourceForm, name: e.target.value })}
+                      placeholder="e.g., Documentation"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">URL</label>
+                    <Input
+                      value={resourceForm.link}
+                      onChange={(e) => setResourceForm({ ...resourceForm, link: e.target.value })}
+                      placeholder="https://example.com"
+                      className="mt-1"
+                    />
+                  </div>
+                  <Button
+                    className="w-full bg-purple-600 hover:bg-purple-700"
+                    disabled={!resourceForm.name.trim() || !resourceForm.link.trim()}
+                    onClick={async () => {
+                      if (!selectedClass) return
+                      const success = await addLinkResource(selectedClass.id, resourceForm.name, resourceForm.link)
+                      if (success) {
+                        setResourceForm({ type: 'link', name: '', file: null, link: '' })
+                      }
+                    }}
+                  >
+                    <Link2 className="w-4 h-4 mr-2" />
+                    Add Link
+                  </Button>
                 </div>
               )}
             </div>
-
-            {/* Class Recording Section */}
-            {selectedClass?.recordingUrl && (
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg">
-                <h3 className="font-semibold text-gray-900 mb-3">Class Recording</h3>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-3">
-                    <FileVideo className="w-10 h-10 text-blue-500" />
-                    <div>
-                      <p className="font-medium text-gray-900">Class Recording.mp4</p>
-                      <p className="text-sm text-gray-600">Full class recording</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 ml-auto">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => window.open(selectedClass.recordingUrl, '_blank')}
-                    >
-                      <Play className="w-4 h-4 mr-1" />
-                      Play
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => window.open(selectedClass.recordingUrl, '_blank')}
-                    >
-                      <Download className="w-4 h-4 mr-1" />
-                      Download
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
-          
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setShowResourcesDialog(false)}
-              className="border-2 border-gray-300 hover:bg-gray-50"
-            >
+
+          <DialogFooter className="border-t pt-6">
+            <Button variant="outline" onClick={() => setShowResourceDialog(false)}>
               Close
             </Button>
           </DialogFooter>
@@ -2539,7 +2223,7 @@ export default function AdminClassesPage() {
                       name="type"
                       value="live"
                       checked={classForm.type === 'live'}
-                      onChange={(e) => setClassForm({...classForm, type: e.target.value as 'live' | 'recorded'})}
+                      onChange={(e) => setClassForm({...classForm, type: e.target.value as ClassType})}
                       className="sr-only"
                       disabled={isSubmitting}
                     />
@@ -2559,7 +2243,7 @@ export default function AdminClassesPage() {
                       name="type"
                       value="recorded"
                       checked={classForm.type === 'recorded'}
-                      onChange={(e) => setClassForm({...classForm, type: e.target.value as 'live' | 'recorded'})}
+                      onChange={(e) => setClassForm({...classForm, type: e.target.value as ClassType})}
                       className="sr-only"
                       disabled={isSubmitting}
                     />
@@ -2571,53 +2255,6 @@ export default function AdminClassesPage() {
                 </div>
               </div>
             </div>
-
-            {/* Recording Settings for Live Classes */}
-            {classForm.type === 'live' && (
-              <div className="space-y-4 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                      <Video className="w-4 h-4" />
-                      Record Live Session
-                    </label>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Automatically record this live class for later viewing
-                    </p>
-                  </div>
-                  <Switch
-                    checked={classForm.recordSession}
-                    onCheckedChange={(checked) => setClassForm({...classForm, recordSession: checked})}
-                    disabled={isSubmitting}
-                  />
-                </div>
-                
-                {classForm.recordSession && (
-                  <div className="space-y-3 pl-4 border-l-2 border-blue-300">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Recording Quality</label>
-                      <Select 
-                        value={classForm.recordingQuality} 
-                        onValueChange={(value) => setClassForm({...classForm, recordingQuality: value as 'low' | 'medium' | 'high'})}
-                        disabled={isSubmitting}
-                      >
-                        <SelectTrigger className="border-2 border-gray-200">
-                          <SelectValue placeholder="Select quality" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">Low (360p)</SelectItem>
-                          <SelectItem value="medium">Medium (720p)</SelectItem>
-                          <SelectItem value="high">High (1080p)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-gray-500">
-                        Higher quality recordings take more storage space
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Tags */}
             <div className="space-y-2">
@@ -2710,78 +2347,6 @@ export default function AdminClassesPage() {
                 />
               </div>
             )}
-
-            {/* Learning Resources Section */}
-            <div className="space-y-4">
-              <label className="text-sm font-medium text-gray-700">Learning Resources</label>
-              
-              {/* Upload Resources */}
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-indigo-500 transition-colors">
-                <input
-                  type="file"
-                  id="resource-upload"
-                  multiple
-                  accept=".pdf,.doc,.docx,.ppt,.pptx,.mp4,.mp3,.mov,.avi,.mkv,.jpg,.jpeg,.png,.zip"
-                  onChange={handleResourceUpload}
-                  className="hidden"
-                  disabled={isSubmitting || isUploadingResources}
-                />
-                <label htmlFor="resource-upload" className="cursor-pointer">
-                  <div className="flex flex-col items-center gap-2">
-                    {isUploadingResources ? (
-                      <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-                    ) : (
-                      <Upload className="w-12 h-12 text-gray-400" />
-                    )}
-                    <p className="font-medium text-gray-700">
-                      {isUploadingResources ? 'Uploading...' : 'Upload Learning Resources'}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      PDFs, Videos, Audio, Presentations, Images, etc.
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="mt-2"
-                      disabled={isSubmitting || isUploadingResources}
-                    >
-                      <Upload className="w-4 h-4 mr-2" />
-                      Browse Files
-                    </Button>
-                  </div>
-                </label>
-              </div>
-
-              {/* Uploaded Resources List */}
-              {classForm.resources && classForm.resources.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Uploaded Resources:</p>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {classForm.resources.map((resource, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          {getFileIcon(resource.type)}
-                          <div>
-                            <p className="font-medium text-sm text-gray-900">{resource.name}</p>
-                            <p className="text-xs text-gray-500">
-                              {formatFileSize(resource.size)} • {resource.type}
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeResource(index)}
-                          disabled={isSubmitting || isUploadingResources}
-                        >
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
           
           <DialogFooter className="border-t pt-6">
@@ -2793,19 +2358,19 @@ export default function AdminClassesPage() {
                 resetForm()
               }}
               className="border-2 border-gray-300 hover:bg-gray-50"
-              disabled={isSubmitting || isUploadingResources}
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
             <Button 
               onClick={handleSaveClass}
               className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
-              disabled={isSubmitting || isUploadingResources}
+              disabled={isSubmitting}
             >
-              {isSubmitting || isUploadingResources ? (
+              {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {isUploadingResources ? 'Uploading...' : showEditDialog ? 'Updating...' : 'Saving...'}
+                  {showEditDialog ? 'Updating...' : 'Saving...'}
                 </>
               ) : showEditDialog ? 'Update Class' : 'Schedule Class'}
             </Button>
