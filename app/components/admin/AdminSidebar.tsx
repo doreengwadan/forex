@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -27,25 +27,57 @@ const adminNavItems = [
   { name: 'Signals', href: '/admin/signals', icon: TrendingUp },
   { name: 'Payments', href: '/admin/payments', icon: CreditCard },
   { name: 'Mentors', href: '/admin/mentors', icon: CreditCard },
-  { name: 'Groups', href: '/admin/group', icon: Users},
-  
+  { name: 'Groups', href: '/admin/group', icon: Users },
   { name: 'Reports', href: '/admin/Reports', icon: FileText },
   { name: 'Settings', href: '/admin/security', icon: Settings },
-
 ]
 
-export default function AdminSidebar() {
+// Add props interface
+interface AdminSidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  isMobile?: boolean;
+}
+
+export default function AdminSidebar({ 
+  isOpen: externalIsOpen, 
+  onClose, 
+  isMobile = false 
+}: AdminSidebarProps) {
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  // Sync with external isOpen prop if provided
+  useEffect(() => {
+    if (externalIsOpen !== undefined) {
+      setSidebarOpen(externalIsOpen)
+    }
+  }, [externalIsOpen])
+
+  // Handle close
+  const handleClose = () => {
+    setSidebarOpen(false)
+    if (onClose) {
+      onClose()
+    }
+  }
+
+  // Handle toggle
+  const handleToggle = () => {
+    setSidebarOpen(!sidebarOpen)
+  }
+
   return (
     <>
-      {/* Mobile sidebar toggle */}
-      <div className="lg:hidden fixed top-4 left-4 z-50">
+      {/* Mobile sidebar toggle - only show on mobile */}
+      <div className={cn(
+        "lg:hidden fixed top-4 left-4 z-50",
+        isMobile && "block"
+      )}>
         <Button
           variant="outline"
           size="icon"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
+          onClick={handleToggle}
           className="bg-white shadow-md"
         >
           {sidebarOpen ? (
@@ -56,19 +88,20 @@ export default function AdminSidebar() {
         </Button>
       </div>
 
-      {/* Sidebar for mobile */}
+      {/* Sidebar overlay for mobile */}
       <div
         className={cn(
           'lg:hidden fixed inset-0 z-40 bg-black/50 transition-opacity',
           sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
         )}
-        onClick={() => setSidebarOpen(false)}
+        onClick={handleClose}
       />
 
       {/* Sidebar */}
       <div
         className={cn(
-          'fixed inset-y-0 left-0 z-40 w-64 bg-gray-900 text-white transform transition-transform lg:translate-x-0 lg:static lg:inset-auto lg:z-auto',
+          'fixed inset-y-0 left-0 z-40 w-64 bg-gray-900 text-white transform transition-transform',
+          'lg:translate-x-0 lg:static lg:inset-auto lg:z-auto',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -107,7 +140,7 @@ export default function AdminSidebar() {
                       ? 'bg-primary text-white'
                       : 'text-gray-300 hover:bg-gray-800'
                   )}
-                  onClick={() => setSidebarOpen(false)}
+                  onClick={handleClose}
                 >
                   <Icon className="w-5 h-5" />
                   <span className="ml-3">{item.name}</span>
@@ -120,9 +153,11 @@ export default function AdminSidebar() {
             <button
               className="flex items-center w-full px-4 py-3 text-sm font-medium text-red-400 rounded-lg hover:bg-red-900/20 transition-colors"
               onClick={() => {
-                localStorage.removeItem('token')
-                localStorage.removeItem('admin_token')
-                window.location.href = '/login'
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem('token')
+                  localStorage.removeItem('admin_token')
+                  window.location.href = '/login'
+                }
               }}
             >
               <LogOut className="w-5 h-5" />
