@@ -40,7 +40,7 @@ import { getEcho } from '../../lib/echo';
 import EmojiPicker from 'emoji-picker-react';
 import { format } from 'date-fns';
 
-// ... interfaces Mentor, Message, Conversation (unchanged) ...
+// Interfaces
 interface Mentor {
   id: number;
   name: string;
@@ -91,6 +91,36 @@ interface Conversation {
   has_unread: boolean;
   last_message_at: string;
   is_typing?: boolean;
+}
+
+interface ApiMessage {
+  id: number;
+  sender_id: number;
+  conversation_id: number;
+  content: string;
+  created_at: string;
+  attachments?: Attachment[];
+  
+}
+
+interface ApiResponse {
+  messages?: Message[];
+  pagination?: {
+    hasMore: boolean;
+  };
+  success?: boolean;
+  message?: {
+    id: number;
+  };
+  attachments?: Array<{
+    id: number;
+    url: string;
+  }>;
+}
+
+interface UploadedAttachment {
+  id: number;
+  url: string;
 }
 
 // Demo mentor responses for testing
@@ -154,6 +184,8 @@ export default function ChatPage() {
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const attachmentMenuRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
+
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Close emoji picker when clicking outside
   useEffect(() => {
@@ -246,7 +278,7 @@ export default function ChatPage() {
     const channel = echoRef.current.private(`chat.${selectedConversation.id}`);
 
     // Listen for new messages
-    channel.listen('.NewMessage', (e: any) => {
+    channel.listen('.NewMessage', (e: { message: ApiMessage }) => {
       handleNewMessage(e.message);
     });
 
@@ -268,7 +300,7 @@ export default function ChatPage() {
   }, [selectedConversation, useDemoMode]);
 
   // --- WebSocket message handlers ---
-  const handleNewMessage = (message: any) => {
+  const handleNewMessage = (message: ApiMessage) => {
     if (selectedConversation && message.conversation_id === selectedConversation.id) {
       const newMessage: Message = {
         id: message.id,
@@ -297,12 +329,6 @@ export default function ChatPage() {
 
     // Update conversation list
     updateConversationList(message);
-  };
-
-  const handleTypingStatus = (conversationId: number, isTyping: boolean) => {
-    if (selectedConversation?.id === conversationId) {
-      setSelectedConversation((prev) => (prev ? { ...prev, is_typing: isTyping } : null));
-    }
   };
 
   const handleMessageRead = (messageId: number) => {
@@ -339,8 +365,8 @@ export default function ChatPage() {
       .whisper('read', { message_id: messageId });
   };
 
-  // Update conversation list (same as before)
-  const updateConversationList = (message: any) => {
+  // Update conversation list
+  const updateConversationList = (message: ApiMessage) => {
     setConversations((prev) => {
       const index = prev.findIndex((c) => c.id === message.conversation_id);
       if (index === -1) return prev;
@@ -398,14 +424,14 @@ export default function ChatPage() {
           content: randomResponse,
           created_at: new Date().toISOString(),
           sender_id: selectedConversation.mentor.id,
+          id: Date.now(),
+          attachments: []
         });
       }
 
       scrollToBottom();
     }, 2000);
   };
-
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Handle typing input
   const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -423,7 +449,7 @@ export default function ChatPage() {
   };
 
   // Handle emoji selection
-  const onEmojiClick = (emojiObject: any) => {
+  const onEmojiClick = (emojiObject: { emoji: string }) => {
     setMessage((prev) => prev + emojiObject.emoji);
     setShowEmojiPicker(false);
   };
@@ -472,46 +498,48 @@ export default function ChatPage() {
   };
 
   // Upload files to server
-  
-  // Replace the existing uploadFiles function with this
-const uploadFiles = async (files: File[]): Promise<any[]> => {
-  try {
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
-      throw new Error('No authentication token found');
+  const uploadFiles = async (files: File[]): Promise<UploadedAttachment[]> => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const formData = new FormData();
+      files.forEach((file, index) => {
+        formData.append(`files[${index}]`, file);
+      });
+
+      const response = await fetch('http://localhost:8000/api/chat/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          // Don't set Content-Type - let browser set it with boundary for multipart/form-data
+        },
+        body: formData,
+        credentials: 'include'
+      });
+
+      const data = await response.json() as ApiResponse;
+
+      if (!response.ok) {
+        throw new Error(data.message?.toString() || 'Failed to upload files');
+      }
+
+      if (data.success && data.attachments) {
+        return data.attachments.map((att: { id: number; url: string }) => ({ 
+          id: att.id, 
+          url: att.url 
+        }));
+      }
+      
+      throw new Error(data.message?.toString() || 'Upload failed');
+    } catch (err) {
+      console.error('Error uploading files:', err);
+      throw err;
     }
+  };
 
-    const formData = new FormData();
-    files.forEach((file, index) => {
-      formData.append(`files[${index}]`, file);
-    });
-
-    const response = await fetch('http://localhost:8000/api/chat/upload', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        // Don't set Content-Type - let browser set it with boundary for multipart/form-data
-      },
-      body: formData,
-      credentials: 'include'
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to upload files');
-    }
-
-    if (data.success && data.attachments) {
-      return data.attachments.map((att: any) => att.url); // Return array of URLs
-    }
-    
-    throw new Error(data.message || 'Upload failed');
-  } catch (err) {
-    console.error('Error uploading files:', err);
-    throw err;
-  }
-};
   // Send message with attachments
   const sendMessageWithAttachments = async (content: string, attachments: File[]) => {
     if ((!content.trim() && attachments.length === 0) || !selectedConversation || isSending) return;
@@ -589,16 +617,23 @@ const uploadFiles = async (files: File[]): Promise<any[]> => {
         }),
       });
 
+      const data = await response.json() as ApiResponse;
+
       if (response.ok) {
-        const data = await response.json();
         // Update optimistic message with real data
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === tempId ? { 
               ...msg, 
-              id: data.message.id, 
+              id: data.message?.id || msg.id, 
               delivered: true,
-              attachments: data.message.attachments || uploadedAttachments
+              attachments: data.message?.attachments || uploadedAttachments.map(a => ({
+                id: a.id.toString(),
+                name: attachments.find(f => f.name === a.url.split('/').pop())?.name || 'Attachment',
+                size: 0,
+                type: 'application/octet-stream',
+                url: a.url
+              }))
             } : msg
           )
         );
@@ -619,8 +654,8 @@ const uploadFiles = async (files: File[]): Promise<any[]> => {
     sendMessageWithAttachments(message, uploadingFiles);
   };
 
-  // --- API fetch functions (unchanged) ---
-  const fetchMentors = async () => {
+  // --- API fetch functions ---
+  const fetchMentors = async (): Promise<Mentor[]> => {
     if (useDemoMode) {
       return [
         {
@@ -665,7 +700,7 @@ const uploadFiles = async (files: File[]): Promise<any[]> => {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as { mentors?: Mentor[] };
         return data.mentors || [];
       }
       return [];
@@ -674,7 +709,7 @@ const uploadFiles = async (files: File[]): Promise<any[]> => {
     }
   };
 
-  const fetchConversations = async () => {
+  const fetchConversations = async (): Promise<Conversation[]> => {
     if (useDemoMode) {
       const mentors = await fetchMentors();
       return mentors.slice(0, 2).map((mentor, index) => ({
@@ -699,7 +734,7 @@ const uploadFiles = async (files: File[]): Promise<any[]> => {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as { conversations?: Conversation[] };
         return data.conversations || [];
       }
       return [];
@@ -708,7 +743,7 @@ const uploadFiles = async (files: File[]): Promise<any[]> => {
     }
   };
 
-  const fetchMessages = async (conversationId: number) => {
+  const fetchMessages = async (conversationId: number): Promise<{ messages: Message[]; pagination: { hasMore: boolean } }> => {
     if (useDemoMode) {
       return {
         messages: [
@@ -766,12 +801,15 @@ const uploadFiles = async (files: File[]): Promise<any[]> => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (response.ok) {
-        const data = await response.json();
-        return { messages: data.messages || [], pagination: data.pagination };
+        const data = await response.json() as { messages?: Message[]; pagination?: { hasMore: boolean } };
+        return { 
+          messages: data.messages || [], 
+          pagination: data.pagination || { hasMore: false } 
+        };
       }
-      return { messages: [], pagination: null };
+      return { messages: [], pagination: { hasMore: false } };
     } catch {
-      return { messages: [], pagination: null };
+      return { messages: [], pagination: { hasMore: false } };
     }
   };
 
@@ -883,7 +921,7 @@ const uploadFiles = async (files: File[]): Promise<any[]> => {
     };
     return (
       <div
-        className={`w-2.5 h-2.5 ${colors[status as keyof typeof colors]} rounded-full ring-2 ring-white dark:ring-gray-800`}
+        className={`w-2.5 h-2.5 ${colors[status as keyof typeof colors] || 'bg-gray-400'} rounded-full ring-2 ring-white dark:ring-gray-800`}
       />
     );
   };
@@ -905,7 +943,7 @@ const uploadFiles = async (files: File[]): Promise<any[]> => {
 
   // Attachment preview component
   const AttachmentPreview = ({ attachment }: { attachment: Attachment }) => {
-    const [isImage, setIsImage] = useState(attachment.type?.startsWith('image/'));
+    const isImage = attachment.type?.startsWith('image/');
     
     return (
       <div className="relative group">
@@ -1188,7 +1226,7 @@ const uploadFiles = async (files: File[]): Promise<any[]> => {
                                 className="w-12 h-12 rounded-full object-cover"
                                 onError={(e) => {
                                   (e.target as HTMLImageElement).style.display = 'none';
-                                  (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center"><User class="w-6 h-6 text-white" /></div>';
+                                  (e.target as HTMLImageElement).parentElement!.innerHTML = '<div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center"><User className="w-6 h-6 text-white" /></div>';
                                 }}
                               />
                             ) : (
@@ -1281,7 +1319,7 @@ const uploadFiles = async (files: File[]): Promise<any[]> => {
                                 className="w-12 h-12 rounded-full object-cover"
                                 onError={(e) => {
                                   (e.target as HTMLImageElement).style.display = 'none';
-                                  (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center"><User class="w-6 h-6 text-white" /></div>';
+                                  (e.target as HTMLImageElement).parentElement!.innerHTML = '<div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center"><User className="w-6 h-6 text-white" /></div>';
                                 }}
                               />
                             ) : (
@@ -1384,7 +1422,7 @@ const uploadFiles = async (files: File[]): Promise<any[]> => {
                               className="w-10 h-10 rounded-full object-cover"
                               onError={(e) => {
                                 (e.target as HTMLImageElement).style.display = 'none';
-                                (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center"><User class="w-5 h-5 text-white" /></div>';
+                                (e.target as HTMLImageElement).parentElement!.innerHTML = '<div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center"><User className="w-5 h-5 text-white" /></div>';
                               }}
                             />
                           ) : (
