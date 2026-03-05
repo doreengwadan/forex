@@ -22,6 +22,12 @@ import {
 import { cn } from '../../lib/utils'
 import { Button } from '../../components/ui/Button'
 
+interface DashboardSidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  isMobile?: boolean;
+}
+
 const navItems = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Classes', href: '/dashboard/classes', icon: Video },
@@ -42,11 +48,35 @@ interface UserData {
   avatar?: string;
 }
 
-export default function DashboardSidebar() {
+export default function DashboardSidebar({ 
+  isOpen: externalIsOpen, 
+  onClose, 
+  isMobile = false 
+}: DashboardSidebarProps) {
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [user, setUser] = useState<UserData | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Sync with external isOpen prop if provided
+  useEffect(() => {
+    if (externalIsOpen !== undefined) {
+      setSidebarOpen(externalIsOpen)
+    }
+  }, [externalIsOpen])
+
+  // Handle close
+  const handleClose = () => {
+    setSidebarOpen(false)
+    if (onClose) {
+      onClose()
+    }
+  }
+
+  // Handle toggle
+  const handleToggle = () => {
+    setSidebarOpen(!sidebarOpen)
+  }
 
   useEffect(() => {
     const loadUserData = () => {
@@ -66,8 +96,12 @@ export default function DashboardSidebar() {
 
     const fetchUserFromAPI = async () => {
       try {
+        const token = localStorage.getItem('auth_token')
         const response = await fetch('http://localhost:8000/api/user', {
           credentials: 'include',
+          headers: token ? {
+            'Authorization': `Bearer ${token}`
+          } : {}
         })
         if (response.ok) {
           const userData = await response.json()
@@ -90,12 +124,20 @@ export default function DashboardSidebar() {
 
   const handleLogout = async () => {
     try {
-      await fetch('http://localhost:8000/api/logout', { method: 'POST', credentials: 'include' })
+      const token = localStorage.getItem('auth_token')
+      await fetch('http://localhost:8000/api/logout', { 
+        method: 'POST', 
+        credentials: 'include',
+        headers: token ? {
+          'Authorization': `Bearer ${token}`
+        } : {}
+      })
     } catch (error) {
       console.error('Logout API error:', error)
     } finally {
       localStorage.removeItem('user_data')
       localStorage.removeItem('auth_token')
+      localStorage.removeItem('token')
       sessionStorage.clear()
       window.location.href = '/login'
     }
@@ -121,23 +163,25 @@ export default function DashboardSidebar() {
 
   return (
     <>
-      {/* Mobile toggle button */}
-      <div className="lg:hidden fixed top-4 left-4 z-50">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg hover:shadow-xl"
-        >
-          {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </Button>
-      </div>
+      {/* Mobile toggle button - only show if not controlled externally */}
+      {!isMobile && (
+        <div className="lg:hidden fixed top-4 left-4 z-50">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleToggle}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg hover:shadow-xl"
+          >
+            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </Button>
+        </div>
+      )}
 
       {/* Backdrop for mobile */}
       {sidebarOpen && (
         <div
           className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity"
-          onClick={() => setSidebarOpen(false)}
+          onClick={handleClose}
         />
       )}
 
@@ -177,7 +221,7 @@ export default function DashboardSidebar() {
                       ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
                       : 'text-blue-800 hover:bg-blue-100 hover:translate-x-1'
                   )}
-                  onClick={() => setSidebarOpen(false)}
+                  onClick={handleClose}
                 >
                   <Icon className={cn('w-5 h-5', isActive ? 'text-white' : 'text-blue-500')} />
                   <span className="ml-3">{item.name}</span>
@@ -206,6 +250,7 @@ export default function DashboardSidebar() {
               <Button 
                 size="sm" 
                 className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                onClick={() => window.location.href = '/dashboard/subscription'}
               >
                 Upgrade Now
               </Button>
@@ -229,12 +274,25 @@ export default function DashboardSidebar() {
               <Button 
                 size="sm" 
                 className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
+                onClick={() => window.location.href = '/dashboard/subscription'}
               >
                 Manage Subscription
               </Button>
             </div>
           </div>
         )}
+
+        {/* Logout button */}
+        <div className="p-4 border-t border-blue-200">
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={handleLogout}
+          >
+            <LogOut className="w-5 h-5 mr-3" />
+            Logout
+          </Button>
+        </div>
       </div>
     </>
   )
