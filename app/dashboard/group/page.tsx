@@ -38,8 +38,8 @@ interface Group {
   name: string;
   description: string;
   slug: string;
-  icon?: string;
-  cover_image?: string;
+  icon?: string;  // Optional string, not nullable
+  cover_image?: string;  // Optional string, not nullable
   members_count: number;
   online_count: number;
   is_private: boolean;
@@ -476,15 +476,15 @@ export default function UserGroupsPage() {
     }
   };
 
-  // Demo data
+  // Demo data - FIXED: Changed null to undefined for optional string fields
   const getDemoGroups = (): Group[] => [
     {
       id: 1,
       name: 'to wind',
       description: 'This one as well the new one',
       slug: 'to-wind',
-      icon: null,
-      cover_image: null,
+      icon: undefined,  // Changed from null to undefined
+      cover_image: undefined,  // Changed from null to undefined
       members_count: 2,
       online_count: 2,
       is_private: true,
@@ -505,8 +505,8 @@ export default function UserGroupsPage() {
       name: 'forex trading',
       description: 'This is the group where we are to create learn forex trading here',
       slug: 'forex-trading',
-      icon: null,
-      cover_image: null,
+      icon: undefined,  // Changed from null to undefined
+      cover_image: undefined,  // Changed from null to undefined
       members_count: 1,
       online_count: 1,
       is_private: true,
@@ -1121,7 +1121,7 @@ export default function UserGroupsPage() {
         )}
       </div>
 
-      {/* Group Details Modal - FIXED TRANSPARENCY */}
+      {/* Group Details Modal */}
       {showGroupDetails && selectedGroup && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 overflow-y-auto backdrop-blur-sm">
           <div className="max-w-2xl w-full">

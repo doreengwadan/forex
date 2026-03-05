@@ -392,7 +392,7 @@ export default function PaymentsPage() {
           toast({
             title: 'Redirecting to Payment',
             description: 'Please complete payment in the new tab.',
-            duration: 10000,
+            
           })
         }
       } else {
