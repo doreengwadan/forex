@@ -405,7 +405,7 @@ export default function ChatPage() {
     }, 2000);
   };
 
-  const typingTimeoutRef = useRef<NodeJS.Timeout>();
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Handle typing input
   const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
