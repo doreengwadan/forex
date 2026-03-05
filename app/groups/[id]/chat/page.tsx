@@ -56,6 +56,12 @@ interface Group {
   online_count?: number
 }
 
+// Add UploadingFile interface for file uploads
+interface UploadingFile extends File {
+  preview?: string;
+  id?: string;
+}
+
 export default function GroupChatPage() {
   const params = useParams()
   const groupId = params.id as string
@@ -76,7 +82,7 @@ export default function GroupChatPage() {
   const [currentUserId, setCurrentUserId] = useState<number | null>(null)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false)
-  const [uploadingFiles, setUploadingFiles] = useState<File[]>([])
+  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
 
   // Mobile detection
   const [isMobile, setIsMobile] = useState(false)
@@ -100,6 +106,17 @@ export default function GroupChatPage() {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Clean up preview URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      uploadingFiles.forEach(file => {
+        if (file.preview) {
+          URL.revokeObjectURL(file.preview)
+        }
+      })
+    }
+  }, [uploadingFiles])
 
   // Polling interval (in ms)
   const POLL_INTERVAL = 3000
@@ -304,10 +321,24 @@ export default function GroupChatPage() {
     setShowEmojiPicker(false)
   }
 
-  // Handle file selection
+  // Handle file selection - FIXED
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
-    setUploadingFiles((prev) => [...prev, ...files])
+    
+    // Create a safe copy of files with unique IDs and previews
+    const newFiles: UploadingFile[] = files.map(file => {
+      const uploadingFile = file as UploadingFile
+      uploadingFile.id = `file-${Date.now()}-${Math.random()}`
+      
+      // Create preview URL for images
+      if (file.type.startsWith('image/')) {
+        uploadingFile.preview = URL.createObjectURL(file)
+      }
+      
+      return uploadingFile
+    })
+    
+    setUploadingFiles((prev) => [...prev, ...newFiles])
     setShowAttachmentMenu(false)
   }
 
@@ -588,8 +619,10 @@ export default function GroupChatPage() {
               {group.avatar ? (
                 <AvatarImage src={group.avatar} alt={group.name} />
               ) : (
-                <AvatarFallback className="bg-gradient-to-br from-[#00a884] to-[#008f6b] text-white">
-                  {group.name.charAt(0).toUpperCase()}
+                <AvatarFallback>
+                  <div className="w-full h-full bg-gradient-to-br from-[#00a884] to-[#008f6b] text-white flex items-center justify-center">
+                    {group.name.charAt(0).toUpperCase()}
+                  </div>
                 </AvatarFallback>
               )}
             </Avatar>
@@ -660,8 +693,10 @@ export default function GroupChatPage() {
                             {msg.user_avatar ? (
                               <AvatarImage src={msg.user_avatar} alt={msg.user_name} />
                             ) : (
-                              <AvatarFallback className="bg-gradient-to-br from-[#00a884] to-[#008f6b] text-white text-xs font-medium">
-                                {getAvatarFallback(msg.user_name)}
+                              <AvatarFallback>
+                                <div className="w-full h-full bg-gradient-to-br from-[#00a884] to-[#008f6b] text-white text-xs font-medium flex items-center justify-center">
+                                  {getAvatarFallback(msg.user_name)}
+                                </div>
                               </AvatarFallback>
                             )}
                           </Avatar>
@@ -748,15 +783,15 @@ export default function GroupChatPage() {
         {/* Message input - WhatsApp style */}
         {isMember ? (
           <div className="bg-white dark:bg-gray-800 rounded-b-lg px-4 py-3 shadow-sm">
-            {/* Attachment Previews */}
+            {/* Attachment Previews - FIXED */}
             {uploadingFiles.length > 0 && (
               <div className="mb-3 flex gap-2 overflow-x-auto pb-2">
                 {uploadingFiles.map((file, index) => (
-                  <div key={`${file.name}-${index}`} className="relative group flex-shrink-0">
+                  <div key={file.id || `file-${index}`} className="relative group flex-shrink-0">
                     {file.type?.startsWith('image/') ? (
                       <div className="w-16 h-16 rounded-lg overflow-hidden shadow-md">
                         <img 
-                          src={URL.createObjectURL(file)} 
+                          src={file.preview || URL.createObjectURL(file)} 
                           alt={file.name}
                           className="w-full h-full object-cover"
                         />
@@ -774,6 +809,10 @@ export default function GroupChatPage() {
                       variant="ghost"
                       className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-md"
                       onClick={() => {
+                        // Clean up preview URL if exists
+                        if (file.preview) {
+                          URL.revokeObjectURL(file.preview)
+                        }
                         setUploadingFiles(prev => prev.filter((_, i) => i !== index))
                       }}
                     >
@@ -828,7 +867,12 @@ export default function GroupChatPage() {
                         input.accept = '.pdf,.doc,.docx,.txt'
                         input.onchange = (e: any) => {
                           const files = Array.from(e.target.files || [])
-                          setUploadingFiles((prev) => [...prev, ...files])
+                          const newFiles: UploadingFile[] = files.map(file => {
+                            const uploadingFile = file as UploadingFile
+                            uploadingFile.id = `file-${Date.now()}-${Math.random()}`
+                            return uploadingFile
+                          })
+                          setUploadingFiles((prev) => [...prev, ...newFiles])
                         }
                         input.click()
                         setShowAttachmentMenu(false)
