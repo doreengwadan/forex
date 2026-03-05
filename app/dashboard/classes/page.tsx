@@ -12,33 +12,24 @@ import {
   Clock,
   Eye,
   Play,
-  Pause,
   MoreVertical,
   User,
   Download,
   X,
-  RefreshCw,
   Check,
   Tag,
   TrendingUp,
-  Zap,
   BookOpen,
   AlertCircle,
   Loader2,
-  AlertTriangle,
   Mic,
   MicOff,
-  Monitor,
-  MonitorOff,
-  UserPlus,
+  User as UserIcon,
   Copy,
   MessageSquare,
   LogIn,
   Star,
   Heart,
-  Share2,
-  Bookmark,
-  BookmarkCheck,
   CheckCircle
 } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
@@ -47,7 +38,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from '../../components/ui/DropdownMenu'
 import { Badge } from '../../components/ui/Badge'
 import {
@@ -56,7 +46,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogDescription,
 } from '../../components/ui/Dialog'
 import {
   Select,
@@ -65,9 +54,37 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/Select'
-import { Textarea } from '../../components/ui/Textarea'
 import { toast } from 'react-hot-toast'
-import { Class, ClassForm, Stats, ClassStatus, ClassType } from '../../types/class'
+
+// Define Class interface with isEnrolled property
+interface Class {
+  id: number;
+  title: string;
+  description: string;
+  instructor: string;
+  category: string;
+  type: 'live' | 'recorded';
+  status: 'scheduled' | 'ongoing' | 'completed' | 'cancelled' | 'published';
+  date: string;
+  time: string;
+  duration: string;
+  maxAttendees: number;
+  attendees: number;
+  tags: string[];
+  recordingUrl?: string;
+  isEnrolled?: boolean;  // Add this property
+}
+
+interface Stats {
+  total: number;
+  live: number;
+  recorded: number;
+  upcoming: number;
+  participants: number;
+}
+
+type ClassStatus = 'scheduled' | 'ongoing' | 'completed' | 'cancelled' | 'published';
+type ClassType = 'live' | 'recorded';
 
 // Import Agora SDK only on client side (for students to join live classes)
 let AgoraRTC: any = null;
@@ -86,7 +103,6 @@ const AGORA_TOKEN_URL = `${API_BASE_URL}/agora/getToken`
 const categories = ['All', 'Programming', 'Design', 'Data Science', 'Computer Science', 'Business', 'Finance', 'Trading']
 const statuses = ['All', 'scheduled', 'ongoing', 'completed', 'published']
 const classTypes = ['All', 'live', 'recorded']
-const tagOptions = ['JavaScript', 'React', 'Python', 'Web Development', 'Data Science', 'AI', 'UI/UX', 'Beginner', 'Advanced', 'Trading', 'Forex', 'Stocks', 'Crypto']
 
 export default function StudentClassesPage() {
   const [classes, setClasses] = useState<Class[]>([])
@@ -446,7 +462,7 @@ export default function StudentClassesPage() {
         return
       }
 
-      const response = await fetch(`${API_BASE_URL}/classes`, { // Changed from /student/classes to /classes
+      const response = await fetch(`${API_BASE_URL}/classes`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -460,7 +476,7 @@ export default function StudentClassesPage() {
         const classesData = data.data || data
         
         // Add isEnrolled property to each class
-        const classesWithEnrollment = classesData.map((cls: Class) => ({
+        const classesWithEnrollment = classesData.map((cls: any) => ({
           ...cls,
           isEnrolled: false // Will be updated by checkEnrollmentStatus
         }))
@@ -537,7 +553,7 @@ export default function StudentClassesPage() {
       
       if (!token) return
   
-      const response = await fetch(`${API_BASE_URL}/student/enrolled-classes`, { // UPDATED
+      const response = await fetch(`${API_BASE_URL}/student/enrolled-classes`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -553,6 +569,7 @@ export default function StudentClassesPage() {
       console.error('Error fetching enrolled classes:', error)
     }
   }
+  
   // Fetch recommended classes for student
   const fetchRecommendedClasses = async () => {
     try {
@@ -601,7 +618,7 @@ export default function StudentClassesPage() {
     }
   }
 
-  // FIXED ENROLLMENT FUNCTION: Join a class as student
+  // Enroll in a class as student
   const enrollInClass = async (classId: number) => {
     // Check authentication
     if (!isAuthenticated()) {
@@ -620,7 +637,6 @@ export default function StudentClassesPage() {
 
       console.log(`Enrolling in class ${classId}...`)
 
-      // FIXED: Using correct endpoint
       const response = await fetch(`${API_BASE_URL}/classes/${classId}/enroll`, {
         method: 'POST',
         headers: {
@@ -628,7 +644,7 @@ export default function StudentClassesPage() {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({}) // Empty body since we just need to enroll
+        body: JSON.stringify({})
       })
 
       const responseData = await response.json()
@@ -643,7 +659,7 @@ export default function StudentClassesPage() {
             ? { 
                 ...cls, 
                 isEnrolled: true,
-                attendees: (cls.attendees || 0) + 1 // Increment attendees count
+                attendees: (cls.attendees || 0) + 1
               }
             : cls
         ))
@@ -712,7 +728,7 @@ export default function StudentClassesPage() {
             ? { 
                 ...cls, 
                 isEnrolled: false,
-                attendees: Math.max(0, (cls.attendees || 0) - 1) // Decrement attendees count
+                attendees: Math.max(0, (cls.attendees || 0) - 1)
               }
             : cls
         ))
@@ -811,7 +827,7 @@ export default function StudentClassesPage() {
     try {
       setSelectedClass(classItem)
       
-      // Check if student is enrolled
+      // Check if student is enrolled - FIXED: Now TypeScript knows about isEnrolled
       if (!classItem.isEnrolled) {
         toast.error('You need to enroll in this class first')
         return
@@ -848,7 +864,7 @@ export default function StudentClassesPage() {
     }
   }
 
-  // FIXED: Handle enroll button click
+  // Handle enroll button click
   const handleEnrollClick = async (classItem: Class, e?: React.MouseEvent) => {
     // Prevent event bubbling
     if (e) {
@@ -900,7 +916,7 @@ export default function StudentClassesPage() {
     setShowDetailsDialog(true)
   }
 
-  // FIXED: Handle confirm enrollment
+  // Handle confirm enrollment
   const handleConfirmEnrollment = async () => {
     if (!selectedClass) {
       toast.error('No class selected')
@@ -1204,9 +1220,9 @@ export default function StudentClassesPage() {
                       className="w-full mt-4 gap-2"
                       onClick={(e) => handleEnrollClick(cls, e)}
                       disabled={cls.attendees >= cls.maxAttendees}
-                      variant={isEnrolled(cls.id) ? "default" : "outline"}
+                      variant={cls.isEnrolled ? "default" : "outline"}
                     >
-                      {isEnrolled(cls.id) ? (
+                      {cls.isEnrolled ? (
                         <>
                           <CheckCircle className="w-4 h-4" />
                           Enrolled
