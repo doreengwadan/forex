@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -19,7 +19,6 @@ import {
   Phone,
   Loader2,
   AlertCircle,
-  RefreshCw,
   Users,
   Star,
   Calendar,
@@ -54,6 +53,15 @@ interface Mentor {
   last_seen?: string;
 }
 
+interface Attachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  url: string;
+  thumbnail?: string;
+}
+
 interface Message {
   id: number | string;
   sender: 'user' | 'mentor';
@@ -67,26 +75,19 @@ interface Message {
   attachments?: Attachment[];
 }
 
-interface Attachment {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  url: string;
-  thumbnail?: string;
+interface LastMessage {
+  content: string;
+  time: string;
+  sender_type: 'user' | 'mentor';
+  delivered?: boolean;
+  read?: boolean;
+  attachments?: Attachment[];
 }
 
 interface Conversation {
   id: number;
   mentor: Mentor;
-  last_message: {
-    content: string;
-    time: string;
-    sender_type: 'user' | 'mentor';
-    delivered?: boolean;
-    read?: boolean;
-    attachments?: Attachment[];
-  } | null;
+  last_message: LastMessage | null;
   unread_count: number;
   has_unread: boolean;
   last_message_at: string;
@@ -100,7 +101,6 @@ interface ApiMessage {
   content: string;
   created_at: string;
   attachments?: Attachment[];
-  
 }
 
 interface ApiResponse {
@@ -111,6 +111,7 @@ interface ApiResponse {
   success?: boolean;
   message?: {
     id: number;
+    attachments?: Attachment[];
   };
   attachments?: Array<{
     id: number;
@@ -121,6 +122,11 @@ interface ApiResponse {
 interface UploadedAttachment {
   id: number;
   url: string;
+}
+
+interface MessageWithAttachments {
+  id: number;
+  attachments?: Attachment[];
 }
 
 // Demo mentor responses for testing
@@ -174,7 +180,6 @@ export default function ChatPage() {
   const echoRef = useRef<any>(null);
 
   // Message pagination
-  const [page, setPage] = useState(1);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const messagesPerPage = 20;
 
@@ -414,6 +419,7 @@ export default function ChatPage() {
         read: false,
         delivered: true,
         sent: true,
+        attachments: []
       };
 
       setMessages((prev) => [...prev, mentorMessage]);
@@ -510,11 +516,10 @@ export default function ChatPage() {
         formData.append(`files[${index}]`, file);
       });
 
-      const response = await fetch('http://localhost:8000/api/chat/upload', {
+      const response = await fetch(`${API_BASE_URL}/chat/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          // Don't set Content-Type - let browser set it with boundary for multipart/form-data
         },
         body: formData,
         credentials: 'include'
@@ -600,7 +605,10 @@ export default function ChatPage() {
       }
 
       // Real API call with attachments
-      const uploadedAttachments = await uploadFiles(attachments);
+      let uploadedAttachments: UploadedAttachment[] = [];
+      if (attachments.length > 0) {
+        uploadedAttachments = await uploadFiles(attachments);
+      }
       
       const token = getToken();
       const response = await fetch(`${API_BASE_URL}/chat/send`, {
@@ -620,6 +628,23 @@ export default function ChatPage() {
       const data = await response.json() as ApiResponse;
 
       if (response.ok) {
+        // Get attachments from response if available
+        let messageAttachments: Attachment[] = [];
+        
+        // Check if message has attachments in response
+        if (data.message && data.message.attachments) {
+          messageAttachments = data.message.attachments;
+        } else if (uploadedAttachments.length > 0) {
+          // Fallback to uploaded attachments
+          messageAttachments = uploadedAttachments.map((a, index) => ({
+            id: a.id.toString(),
+            name: attachments[index]?.name || 'Attachment',
+            size: attachments[index]?.size || 0,
+            type: attachments[index]?.type || 'application/octet-stream',
+            url: a.url
+          }));
+        }
+
         // Update optimistic message with real data
         setMessages((prev) =>
           prev.map((msg) =>
@@ -627,13 +652,7 @@ export default function ChatPage() {
               ...msg, 
               id: data.message?.id || msg.id, 
               delivered: true,
-              attachments: data.message?.attachments || uploadedAttachments.map(a => ({
-                id: a.id.toString(),
-                name: attachments.find(f => f.name === a.url.split('/').pop())?.name || 'Attachment',
-                size: 0,
-                type: 'application/octet-stream',
-                url: a.url
-              }))
+              attachments: messageAttachments.length > 0 ? messageAttachments : msg.attachments
             } : msg
           )
         );
@@ -712,7 +731,7 @@ export default function ChatPage() {
   const fetchConversations = async (): Promise<Conversation[]> => {
     if (useDemoMode) {
       const mentors = await fetchMentors();
-      return mentors.slice(0, 2).map((mentor, index) => ({
+      return mentors.slice(0, 2).map((mentor: Mentor, index) => ({
         id: index + 1,
         mentor,
         last_message: {
@@ -721,6 +740,7 @@ export default function ChatPage() {
           sender_type: index === 0 ? 'mentor' : 'user',
           delivered: true,
           read: index !== 1,
+          attachments: []
         },
         unread_count: index === 1 ? 2 : 0,
         has_unread: index === 1,
@@ -760,6 +780,7 @@ export default function ChatPage() {
             read: true,
             delivered: true,
             sent: true,
+            attachments: []
           },
           {
             id: 2,
@@ -774,6 +795,7 @@ export default function ChatPage() {
             read: true,
             delivered: true,
             sent: true,
+            attachments: []
           },
           {
             id: 3,
@@ -788,6 +810,7 @@ export default function ChatPage() {
             read: true,
             delivered: true,
             sent: true,
+            attachments: []
           },
         ],
         pagination: { hasMore: false },
@@ -988,7 +1011,7 @@ export default function ChatPage() {
     return (
       <div className="mt-2 space-y-2">
         <div className="grid grid-cols-4 gap-1">
-          {displayAttachments.map((attachment, index) => (
+          {displayAttachments.map((attachment) => (
             <div
               key={attachment.id}
               className="relative aspect-square rounded-lg overflow-hidden cursor-pointer group"
