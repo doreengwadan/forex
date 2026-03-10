@@ -278,6 +278,19 @@ export default function DashboardLayout({
     setAvatarError(true);
   };
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.user-menu-container')) {
+        setUserMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Don't render until after mount to avoid hydration mismatch
   if (!mounted) {
     return (
@@ -331,79 +344,84 @@ export default function DashboardLayout({
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Scrollable main area with sticky header */}
-        <main className="flex-1 overflow-y-auto">
-          {/* Sticky Header */}
-          <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-sm border-b border-gray-200 shadow-sm">
-            <div className="px-4 sm:px-6 lg:px-8 py-4">
-              <div className="flex items-center justify-between">
-                {/* Left side: Title and mobile menu */}
-                <div className="flex items-center gap-4">
-                  {isMobile && (
-                    <button
-                      onClick={() => setSidebarOpen(!sidebarOpen)}
-                      className="p-2 text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-100"
-                      aria-label="Toggle menu"
-                    >
-                      <Menu className="w-6 h-6" />
-                    </button>
-                  )}
-                  <div>
-                    <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
-                    <p className="text-sm text-gray-600">{description}</p>
-                  </div>
+      <div className="flex-1 flex flex-col min-h-screen">
+        {/* Fixed Header */}
+        <header className="fixed top-0 left-0 right-0 lg:left-64 z-30 bg-white/80 backdrop-blur-sm border-b border-gray-200 shadow-sm">
+          <div className="px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex items-center justify-between">
+              {/* Left side: Title and mobile menu */}
+              <div className="flex items-center gap-4">
+                {isMobile && (
+                  <button
+                    onClick={() => setSidebarOpen(!sidebarOpen)}
+                    className="p-2 text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-100"
+                    aria-label="Toggle menu"
+                  >
+                    <Menu className="w-6 h-6" />
+                  </button>
+                )}
+                <div>
+                  <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
+                  <p className="text-sm text-gray-600">{description}</p>
                 </div>
+              </div>
 
-                {/* Right side: User info */}
-                <div className="flex items-center gap-4">
-                  {loading ? (
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse"></div>
-                      <div className="hidden md:block">
-                        <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mb-2"></div>
-                        <div className="h-3 w-16 bg-gray-200 rounded animate-pulse"></div>
-                      </div>
+              {/* Right side: User info */}
+              <div className="flex items-center gap-4">
+                {loading ? (
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse"></div>
+                    <div className="hidden md:block">
+                      <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mb-2"></div>
+                      <div className="h-3 w-16 bg-gray-200 rounded animate-pulse"></div>
                     </div>
-                  ) : user ? (
-                    <div className="relative">
-                      <button
-                        onClick={() => setUserMenuOpen(!userMenuOpen)}
-                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                      >
-                        <div className="relative">
-                          <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                            {user.avatar_url && !avatarError ? (
-                              <Image
-                                src={user.avatar_url}
-                                alt={getDisplayName()}
-                                width={40}
-                                height={40}
-                                className="w-full h-full object-cover"
-                                onError={handleAvatarError}
-                              />
-                            ) : (
-                              <span className="text-white font-medium text-sm">
-                                {getInitials()}
-                              </span>
-                            )}
-                          </div>
-                          <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${getUserStatusColor()}`}></div>
+                  </div>
+                ) : user ? (
+                  <div className="relative user-menu-container">
+                    <button
+                      onClick={() => setUserMenuOpen(!userMenuOpen)}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      <div className="relative">
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                          {user.avatar_url && !avatarError ? (
+                            <Image
+                              src={user.avatar_url}
+                              alt={getDisplayName()}
+                              width={40}
+                              height={40}
+                              className="w-full h-full object-cover"
+                              onError={handleAvatarError}
+                            />
+                          ) : (
+                            <span className="text-white font-medium text-sm">
+                              {getInitials()}
+                            </span>
+                          )}
                         </div>
-                        <div className="hidden md:block text-left">
-                          <p className="font-medium text-gray-900 truncate max-w-[150px]">
-                            {getDisplayName()}
-                          </p>
-                          <p className="text-xs text-gray-500 flex items-center gap-1">
-                            <span className={`w-1.5 h-1.5 rounded-full ${getUserStatusColor()}`}></span>
-                            {getUserStatusText()}
-                          </p>
-                        </div>
-                        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
-                      </button>
+                        <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${getUserStatusColor()}`}></div>
+                      </div>
+                      <div className="hidden md:block text-left">
+                        <p className="font-medium text-gray-900 truncate max-w-[150px]">
+                          {getDisplayName()}
+                        </p>
+                        <p className="text-xs text-gray-500 flex items-center gap-1">
+                          <span className={`w-1.5 h-1.5 rounded-full ${getUserStatusColor()}`}></span>
+                          {getUserStatusText()}
+                        </p>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
 
-                      {/* User Dropdown Menu */}
-                      {userMenuOpen && (
+                    {/* User Dropdown Menu */}
+                    {userMenuOpen && (
+                      <>
+                        {/* Backdrop for mobile */}
+                        <div 
+                          className="fixed inset-0 z-40 lg:hidden"
+                          onClick={() => setUserMenuOpen(false)}
+                        ></div>
+                        
                         <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
                           {/* User Info */}
                           <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
@@ -526,21 +544,24 @@ export default function DashboardLayout({
                             </button>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => window.location.href = '/login'}
-                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm"
-                    >
-                      Sign In
-                    </button>
-                  )}
-                </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => window.location.href = '/login'}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm"
+                  >
+                    Sign In
+                  </button>
+                )}
               </div>
             </div>
-          </header>
+          </div>
+        </header>
 
+        {/* Main content with padding to account for fixed header */}
+        <main className="flex-1 mt-[88px] overflow-y-auto">
           {/* Page Content */}
           <div className="p-4 sm:p-6 lg:p-8">
             <div className="max-w-7xl mx-auto">

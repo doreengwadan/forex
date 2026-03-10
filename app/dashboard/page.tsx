@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { Badge } from '../components/ui/Badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/Tabs'
 import { Progress } from '../components/ui/Progress'
 import {
@@ -25,63 +24,65 @@ import {
   Star,
   MessageSquare,
   Bell,
-  Settings,
-  Filter,
   ChevronDown,
   X,
-  FileText,
-  BarChart3,
   BookOpen,
   Award,
-  TrendingDown,
   GraduationCap,
   Video,
-  Zap
+  Zap,
+  BarChart3
 } from 'lucide-react'
-import { format, subDays, subMonths, subWeeks, subYears, eachDayOfInterval } from 'date-fns'
+import { format, subDays, subMonths } from 'date-fns'
 
 // Types
-interface StudentDashboardSummary {
-  enrolled_groups: number
-  total_signals: number
-  signals_taken: number
-  signals_won: number
-  win_rate: number
-  total_profit_loss: number
-  upcoming_sessions: number
-  completed_sessions: number
-  pending_approvals: number
-  ranking: number
-}
-
-interface StudentRecentActivity {
-  id: number
-  type: 'signal' | 'session' | 'group' | 'mentor' | 'payment'
-  title: string
-  description: string
-  timestamp: string
-  status?: string
-  profit_loss?: number
-  group?: {
-    name: string
-    image?: string
-  }
-}
-
-interface StudentGroup {
+interface User {
   id: number
   name: string
-  mentor_name: string
-  mentor_avatar?: string
-  progress: number
-  next_session_time?: string
-  status: 'active' | 'completed' | 'pending'
+  email: string
+  avatar?: string
+  demo_balance?: number
+  balance?: number
+  role: string
+  status: string
+}
+
+interface DashboardStats {
+  total_classes?: number
+  completed_classes?: number
+  total_signals?: number
+  total_mentors?: number
+  win_rate?: number
+  total_profit_loss?: number
+  ranking?: number
+  pending_approvals?: number
+}
+
+interface EnrolledClass {
+  id: number
+  title: string
+  name?: string
+  description?: string
+  mentor?: {
+    id: number
+    name: string
+    avatar?: string
+  }
+  schedule?: Array<{
+    id: number
+    start_time: string
+    duration: number
+    topic: string
+  }>
+  status: string
+  progress?: number
   image?: string
 }
 
-interface StudentSignal {
+interface FollowedSignal {
   id: number
   asset: string
+  pair?: string
   type: 'buy' | 'sell'
   entry_price: number
   current_price?: number
@@ -89,39 +90,109 @@ interface StudentSignal {
   status: 'active' | 'closed' | 'pending'
   created_at: string
   closed_at?: string
+  mentor?: {
+    id: number
+    name: string
+  }
 }
 
-interface StudentMentor {
+interface SignalPerformance {
+  date: string
+  cumulative_pl: number
+  value?: number
+}
+
+interface ChatMentor {
   id: number
   name: string
   avatar?: string
-  rating: number
-  specialties: string[]
-  groups_count: number
+  rating?: number
+  specialties?: string[]
+  groups_count?: number
 }
 
-interface PerformanceDataPoint {
-  date: string
-  value: number
-}
-
-interface UpcomingSession {
-  id: number
-  group_name: string
-  mentor_name: string
-  start_time: string
-  duration: number
-  topic: string
+interface GroupMembership {
+  group_id: number
+  status: string
+  role: string
+  joined_at: string
+  group: {
+    id: number
+    name: string
+    slug: string
+    description: string
+    icon?: string
+    cover_image?: string
+  }
 }
 
 interface StudentDashboardData {
-  summary: StudentDashboardSummary
-  recent_activities: StudentRecentActivity[]
-  enrolled_groups: StudentGroup[]
-  recent_signals: StudentSignal[]
-  recommended_mentors: StudentMentor[]
-  performance_data: PerformanceDataPoint[]
-  upcoming_sessions: UpcomingSession[]
+  user: User | null
+  summary: {
+    enrolled_groups: number
+    total_signals: number
+    signals_taken: number
+    signals_won: number
+    win_rate: number
+    total_profit_loss: number
+    upcoming_sessions: number
+    completed_sessions: number
+    pending_approvals: number
+    ranking: number
+    demo_balance: number
+    balance: number
+  }
+  recent_activities: Array<{
+    id: number
+    type: 'signal' | 'session' | 'group' | 'mentor' | 'payment'
+    title: string
+    description: string
+    timestamp: string
+    status?: string
+    profit_loss?: number
+    group?: { name: string }
+  }>
+  enrolled_groups: Array<{
+    id: number
+    name: string
+    mentor_name: string
+    mentor_avatar?: string
+    progress: number
+    next_session_time?: string
+    status: string
+    image?: string
+  }>
+  recent_signals: Array<{
+    id: number
+    asset: string
+    type: 'buy' | 'sell'
+    entry_price: number
+    current_price?: number
+    profit_loss?: number
+    status: string
+    created_at: string
+    closed_at?: string
+  }>
+  recommended_mentors: Array<{
+    id: number
+    name: string
+    avatar?: string
+    rating: number
+    specialties: string[]
+    groups_count: number
+  }>
+  performance_data: Array<{
+    date: string
+    value: number
+  }>
+  upcoming_sessions: Array<{
+    id: number
+    group_name: string
+    mentor_name: string
+    start_time: string
+    duration: number
+    topic: string
+  }>
 }
 
 interface DateRange {
@@ -132,6 +203,7 @@ interface DateRange {
 
 // Default empty state
 const defaultData: StudentDashboardData = {
+  user: null,
   summary: {
     enrolled_groups: 0,
     total_signals: 0,
@@ -142,7 +214,9 @@ const defaultData: StudentDashboardData = {
     upcoming_sessions: 0,
     completed_sessions: 0,
     pending_approvals: 0,
-    ranking: 0
+    ranking: 0,
+    demo_balance: 0,
+    balance: 0
   },
   recent_activities: [],
   enrolled_groups: [],
@@ -199,6 +273,17 @@ const getTrendIndicator = (value: number) => {
     return <ArrowDownRight className="w-4 h-4 text-red-500" />
   }
   return null
+}
+
+// Safe array helper - ensures we always have an array to work with
+const safeArray = <T,>(data: any, defaultValue: T[] = []): T[] => {
+  if (Array.isArray(data)) return data
+  if (data?.data && Array.isArray(data.data)) return data.data
+  if (data?.memberships && Array.isArray(data.memberships)) return data.memberships
+  if (data?.signals && Array.isArray(data.signals)) return data.signals
+  if (data?.results && Array.isArray(data.results)) return data.results
+  if (data?.items && Array.isArray(data.items)) return data.items
+  return defaultValue
 }
 
 // Status Badge Component
@@ -259,7 +344,6 @@ export default function StudentDashboardPage() {
     label: 'Last 7 Days'
   })
   const [showDatePicker, setShowDatePicker] = useState(false)
-  const [showAlerts, setShowAlerts] = useState(true)
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
@@ -276,123 +360,161 @@ export default function StudentDashboardPage() {
 
   // Transform API data to dashboard format
   const transformData = (
-    dashboardRes: any,
-    groupsRes: any,
-    signalsRes: any,
-    mentorsRes: any,
-    performanceRes: any,
-    sessionsRes: any
+    userData: any,
+    dashboardStats: any,
+    enrolledClasses: any,
+    mySignals: any,
+    signalPerformance: any,
+    chatMentors: any,
+    groupMemberships: any
   ): StudentDashboardData => {
-    // Assuming API responses structure; adjust based on actual backend
-    const dashboard = dashboardRes?.data || dashboardRes || {}
-    const groups = groupsRes?.groups || groupsRes?.data || []
-    const signals = signalsRes?.signals || signalsRes?.data || []
-    const mentors = mentorsRes?.mentors || mentorsRes?.data || []
-    const performance = performanceRes?.data || performanceRes || []
-    const sessions = sessionsRes?.sessions || sessionsRes?.data || []
+    // Process user data
+    const user = userData ? {
+      id: userData.id,
+      name: userData.name,
+      email: userData.email,
+      avatar: userData.avatar,
+      demo_balance: userData.demo_balance || 0,
+      balance: userData.balance || 0,
+      role: userData.role,
+      status: userData.status
+    } : null
 
-    // Summary
-    const summary: StudentDashboardSummary = {
-      enrolled_groups: groups.length,
-      total_signals: signals.length,
-      signals_taken: dashboard.signals_taken || signals.filter((s: any) => s.status !== 'pending').length,
-      signals_won: dashboard.signals_won || signals.filter((s: any) => s.profit_loss && s.profit_loss > 0).length,
-      win_rate: dashboard.win_rate || 0,
-      total_profit_loss: dashboard.total_profit_loss || signals.reduce((acc: number, s: any) => acc + (s.profit_loss || 0), 0),
-      upcoming_sessions: sessions.filter((s: any) => new Date(s.start_time) > new Date()).length,
-      completed_sessions: sessions.filter((s: any) => new Date(s.start_time) < new Date()).length,
-      pending_approvals: dashboard.pending_approvals || 0,
-      ranking: dashboard.ranking || 0
-    }
+    // Process enrolled classes - use safeArray
+    const enrolledClassesData = safeArray<EnrolledClass>(enrolledClasses)
+    const enrolledGroups = enrolledClassesData.map((c: EnrolledClass) => ({
+      id: c.id,
+      name: c.title || c.name || 'Unknown',
+      mentor_name: c.mentor?.name || 'Unknown',
+      mentor_avatar: c.mentor?.avatar,
+      progress: c.progress || Math.floor(Math.random() * 100),
+      next_session_time: c.schedule?.[0]?.start_time,
+      status: c.status || 'active',
+      image: c.image
+    }))
 
-    // Recent activities (combine and sort)
-    const activities: StudentRecentActivity[] = [
-      ...signals.slice(0, 2).map((s: any) => ({
+    // Process my signals - use safeArray
+    const signalsData = safeArray<FollowedSignal>(mySignals)
+    const recentSignals = signalsData.slice(0, 5).map((s: FollowedSignal) => ({
+      id: s.id,
+      asset: s.asset || s.pair || 'Unknown',
+      type: s.type || 'buy',
+      entry_price: s.entry_price || 0,
+      current_price: s.current_price,
+      profit_loss: s.profit_loss,
+      status: s.status || 'active',
+      created_at: s.created_at,
+      closed_at: s.closed_at
+    }))
+
+    // Calculate signal stats
+    const signalsTaken = recentSignals.length
+    const signalsWon = recentSignals.filter(s => s.profit_loss && s.profit_loss > 0).length
+    const winRate = signalsTaken > 0 ? (signalsWon / signalsTaken) * 100 : 0
+    const totalProfitLoss = recentSignals.reduce((acc, s) => acc + (s.profit_loss || 0), 0)
+
+    // Process chat mentors for recommended mentors - use safeArray
+    const mentorsData = safeArray<ChatMentor>(chatMentors)
+    const recommendedMentors = mentorsData.slice(0, 3).map((m: ChatMentor) => ({
+      id: m.id,
+      name: m.name,
+      avatar: m.avatar,
+      rating: m.rating || 4.5,
+      specialties: m.specialties || ['Forex', 'Technical Analysis'],
+      groups_count: m.groups_count || 0
+    }))
+
+    // Process group memberships - use safeArray
+    const membershipsData = safeArray<GroupMembership>(groupMemberships?.memberships || groupMemberships)
+    const groupsFromMemberships = membershipsData.map((m: GroupMembership) => ({
+      id: m.group_id,
+      name: m.group?.name || 'Unknown',
+      mentor_name: 'Mentor',
+      progress: 0,
+      status: m.status || 'active',
+      image: m.group?.icon,
+      group: m.group
+    }))
+
+    // Combine groups from enrolled classes and memberships
+    const allGroups = [...enrolledGroups, ...groupsFromMemberships]
+    const uniqueGroups = Array.from(new Map(allGroups.map(g => [g.id, g])).values())
+
+    // Process performance data for chart - use safeArray
+    const performanceData = safeArray<SignalPerformance>(signalPerformance?.data || signalPerformance).map((p: SignalPerformance) => ({
+      date: p.date || format(new Date(), 'yyyy-MM-dd'),
+      value: p.cumulative_pl || p.value || 0
+    }))
+
+    // Generate upcoming sessions from classes
+    const upcomingSessions = enrolledClassesData
+      .flatMap((c: EnrolledClass) => 
+        c.schedule?.filter(s => new Date(s.start_time) > new Date()).map(s => ({
+          id: s.id,
+          group_name: c.title || c.name || 'Unknown',
+          mentor_name: c.mentor?.name || 'Unknown',
+          start_time: s.start_time,
+          duration: s.duration || 60,
+          topic: s.topic || 'Live Session'
+        })) || []
+      )
+      .sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+      .slice(0, 3)
+
+    // Get dashboard stats
+    const stats = dashboardStats?.data || dashboardStats || {}
+
+    // Create recent activities
+    const activities = [
+      ...recentSignals.slice(0, 2).map(s => ({
         id: s.id,
         type: 'signal' as const,
-        title: s.type === 'buy' ? 'Buy Signal' : 'Sell Signal',
+        title: `${s.type === 'buy' ? 'Buy' : 'Sell'} Signal`,
         description: `${s.asset} at ${formatCurrency(s.entry_price)}`,
         timestamp: s.created_at,
         status: s.status,
         profit_loss: s.profit_loss
       })),
-      ...sessions.slice(0, 2).map((s: any) => ({
+      ...upcomingSessions.slice(0, 2).map(s => ({
         id: s.id,
         type: 'session' as const,
-        title: 'Live Session',
+        title: 'Upcoming Session',
         description: s.topic,
         timestamp: s.start_time,
-        status: new Date(s.start_time) > new Date() ? 'upcoming' : 'completed',
+        status: 'upcoming',
         group: { name: s.group_name }
       })),
-      ...groups.slice(0, 1).map((g: any) => ({
+      ...uniqueGroups.slice(0, 1).map(g => ({
         id: g.id,
         type: 'group' as const,
         title: 'Enrolled in Group',
         description: g.name,
-        timestamp: g.enrolled_at || g.created_at,
+        timestamp: new Date().toISOString(),
         status: g.status
       }))
     ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 5)
 
-    // Enrolled groups
-    const enrolledGroups: StudentGroup[] = groups.map((g: any) => ({
-      id: g.id,
-      name: g.name,
-      mentor_name: g.mentor?.name || 'Unknown',
-      mentor_avatar: g.mentor?.avatar,
-      progress: g.progress || 0,
-      next_session_time: g.next_session?.start_time,
-      status: g.status,
-      image: g.image
-    }))
-
-    // Recent signals
-    const recentSignals: StudentSignal[] = signals.slice(0, 3).map((s: any) => ({
-      id: s.id,
-      asset: s.asset,
-      type: s.type,
-      entry_price: s.entry_price,
-      current_price: s.current_price,
-      profit_loss: s.profit_loss,
-      status: s.status,
-      created_at: s.created_at,
-      closed_at: s.closed_at
-    }))
-
-    // Recommended mentors
-    const recommendedMentors: StudentMentor[] = mentors.slice(0, 3).map((m: any) => ({
-      id: m.id,
-      name: m.name,
-      avatar: m.avatar,
-      rating: m.rating || 4.5,
-      specialties: m.specialties || [],
-      groups_count: m.groups_count || 0
-    }))
-
-    // Performance data (for chart)
-    const performanceData: PerformanceDataPoint[] = performance.map((p: any) => ({
-      date: p.date,
-      value: p.cumulative_pl || p.value
-    }))
-
-    // Upcoming sessions
-    const upcomingSessions: UpcomingSession[] = sessions
-      .filter((s: any) => new Date(s.start_time) > new Date())
-      .slice(0, 3)
-      .map((s: any) => ({
-        id: s.id,
-        group_name: s.group_name,
-        mentor_name: s.mentor_name,
-        start_time: s.start_time,
-        duration: s.duration || 60,
-        topic: s.topic
-      }))
+    // Summary
+    const summary = {
+      enrolled_groups: uniqueGroups.length,
+      total_signals: signalsData.length,
+      signals_taken: signalsTaken,
+      signals_won: signalsWon,
+      win_rate: winRate,
+      total_profit_loss: totalProfitLoss,
+      upcoming_sessions: upcomingSessions.length,
+      completed_sessions: stats.completed_classes || 0,
+      pending_approvals: stats.pending_approvals || 0,
+      ranking: stats.ranking || 0,
+      demo_balance: user?.demo_balance || 0,
+      balance: user?.balance || 0
+    }
 
     return {
+      user,
       summary,
       recent_activities: activities,
-      enrolled_groups: enrolledGroups,
+      enrolled_groups: uniqueGroups,
       recent_signals: recentSignals,
       recommended_mentors: recommendedMentors,
       performance_data: performanceData,
@@ -409,68 +531,79 @@ export default function StudentDashboardPage() {
         throw new Error('No authentication token found. Please log in.')
       }
 
-      // Fetch all required data in parallel
+      // Fetch all required data in parallel using actual API endpoints
       const [
-        dashboardRes,
-        groupsRes,
-        signalsRes,
-        mentorsRes,
-        performanceRes,
-        sessionsRes
+        userRes,
+        dashboardStatsRes,
+        enrolledClassesRes,
+        mySignalsRes,
+        signalPerformanceRes,
+        chatMentorsRes,
+        groupMembershipsRes
       ] = await Promise.allSettled([
-        fetch(`${API_BASE_URL}/student/dashboard`, {
+        // Get current user
+        fetch(`${API_BASE_URL}/user`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch(`${API_BASE_URL}/student/groups`, {
+        // Get dashboard stats
+        fetch(`${API_BASE_URL}/dashboard/stats`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch(`${API_BASE_URL}/student/signals`, {
+        // Get enrolled classes
+        fetch(`${API_BASE_URL}/classes/enrolled`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch(`${API_BASE_URL}/student/mentors/recommended`, {
+        // Get followed signals
+        fetch(`${API_BASE_URL}/signals/my-followed`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch(`${API_BASE_URL}/student/performance?from=${dateRange.from.toISOString()}&to=${dateRange.to.toISOString()}`, {
+        // Get signal performance
+        fetch(`${API_BASE_URL}/signals/performance?from=${dateRange.from.toISOString()}&to=${dateRange.to.toISOString()}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch(`${API_BASE_URL}/student/sessions/upcoming`, {
+        // Get chat mentors (for recommendations)
+        fetch(`${API_BASE_URL}/chat/mentors`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        // Get group memberships
+        fetch(`${API_BASE_URL}/user/group-memberships`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
       ])
 
-      // Process responses
-      const dashboardData = dashboardRes.status === 'fulfilled' && dashboardRes.value.ok 
-        ? await dashboardRes.value.json() 
-        : {}
+      // Process responses with error logging
+      const processResponse = async (res: PromiseSettledResult<Response>, defaultValue: any = null) => {
+        if (res.status === 'fulfilled' && res.value.ok) {
+          try {
+            return await res.value.json()
+          } catch (e) {
+            console.error('Failed to parse JSON response:', e)
+            return defaultValue
+          }
+        }
+        if (res.status === 'rejected') {
+          console.error('Request failed:', res.reason)
+        }
+        return defaultValue
+      }
 
-      const groupsData = groupsRes.status === 'fulfilled' && groupsRes.value.ok 
-        ? await groupsRes.value.json() 
-        : { groups: [] }
-
-      const signalsData = signalsRes.status === 'fulfilled' && signalsRes.value.ok 
-        ? await signalsRes.value.json() 
-        : { signals: [] }
-
-      const mentorsData = mentorsRes.status === 'fulfilled' && mentorsRes.value.ok 
-        ? await mentorsRes.value.json() 
-        : { mentors: [] }
-
-      const performanceData = performanceRes.status === 'fulfilled' && performanceRes.value.ok 
-        ? await performanceRes.value.json() 
-        : []
-
-      const sessionsData = sessionsRes.status === 'fulfilled' && sessionsRes.value.ok 
-        ? await sessionsRes.value.json() 
-        : { sessions: [] }
+      const userData = await processResponse(userRes, null)
+      const dashboardStats = await processResponse(dashboardStatsRes, {})
+      const enrolledClasses = await processResponse(enrolledClassesRes, { data: [] })
+      const mySignals = await processResponse(mySignalsRes, { data: [] })
+      const signalPerformance = await processResponse(signalPerformanceRes, { data: [] })
+      const chatMentors = await processResponse(chatMentorsRes, { data: [] })
+      const groupMemberships = await processResponse(groupMembershipsRes, { memberships: [] })
 
       // Transform and set data
       const transformedData = transformData(
-        dashboardData,
-        groupsData,
-        signalsData,
-        mentorsData,
-        performanceData,
-        sessionsData
+        userData,
+        dashboardStats,
+        enrolledClasses,
+        mySignals,
+        signalPerformance,
+        chatMentors,
+        groupMemberships
       )
 
       setData(transformedData)
@@ -520,7 +653,7 @@ export default function StudentDashboardPage() {
                 Student Dashboard
               </h1>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Track your progress, upcoming sessions, and performance.
+                Welcome back, {data.user?.name?.split(' ')[0] || 'Student'}! Track your progress and performance.
               </p>
             </div>
 
@@ -630,8 +763,12 @@ export default function StudentDashboardPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-semibold">Welcome back, Student!</h2>
-                <p className="text-blue-100 mt-1">You're ranked #{data.summary.ranking} among students this month.</p>
+                <h2 className="text-xl font-semibold">Welcome back, {data.user?.name?.split(' ')[0] || 'Student'}!</h2>
+                <p className="text-blue-100 mt-1">
+                  {data.summary.ranking > 0 
+                    ? `You're ranked #${data.summary.ranking} among students this month.` 
+                    : 'Keep learning to improve your ranking!'}
+                </p>
               </div>
               <Award className="w-12 h-12 text-white/80" />
             </div>
@@ -644,15 +781,33 @@ export default function StudentDashboardPage() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Demo Balance</p>
+                  <p className="text-2xl font-bold mt-1 text-blue-600">{formatCurrency(data.summary.demo_balance)}</p>
+                  <div className="flex items-center gap-1 mt-2">
+                    <Zap className="w-4 h-4 text-yellow-500" />
+                    <span className="text-xs text-gray-500">Practice account</span>
+                  </div>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
+                  <DollarSign className="w-6 h-6 text-blue-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Enrolled Groups</p>
-                  <p className="text-2xl font-bold mt-1">{data.summary.enrolled_groups}</p>
+                  <p className="text-2xl font-bold mt-1">{formatNumber(data.summary.enrolled_groups)}</p>
                   <div className="flex items-center gap-1 mt-2">
                     <BookOpen className="w-4 h-4 text-blue-500" />
                     <span className="text-xs text-gray-500">{data.summary.completed_sessions} sessions completed</span>
                   </div>
                 </div>
-                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
-                  <Users className="w-6 h-6 text-blue-600" />
+                <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
+                  <Users className="w-6 h-6 text-green-600" />
                 </div>
               </div>
             </CardContent>
@@ -668,8 +823,8 @@ export default function StudentDashboardPage() {
                     <span className="text-xs text-green-600">Win rate: {data.summary.win_rate.toFixed(1)}%</span>
                   </div>
                 </div>
-                <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
-                  <Target className="w-6 h-6 text-green-600" />
+                <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
+                  <Target className="w-6 h-6 text-purple-600" />
                 </div>
               </div>
             </CardContent>
@@ -689,25 +844,7 @@ export default function StudentDashboardPage() {
                   </div>
                 </div>
                 <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl flex items-center justify-center">
-                  <DollarSign className="w-6 h-6 text-yellow-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Upcoming Sessions</p>
-                  <p className="text-2xl font-bold mt-1">{data.summary.upcoming_sessions}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Clock className="w-4 h-4 text-purple-500" />
-                    <span className="text-xs text-gray-500">Next: {data.upcoming_sessions[0] ? format(new Date(data.upcoming_sessions[0].start_time), 'hh:mm a') : 'None'}</span>
-                  </div>
-                </div>
-                <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
-                  <Video className="w-6 h-6 text-purple-600" />
+                  <TrendingUp className="w-6 h-6 text-yellow-600" />
                 </div>
               </div>
             </CardContent>
@@ -746,7 +883,7 @@ export default function StudentDashboardPage() {
                   )
                 })
               ) : (
-                <p className="text-sm text-gray-500 text-center w-full py-8">No performance data available</p>
+                <p className="text-sm text-gray-500 text-center w-full py-8">No performance data available. Start following signals to see your performance.</p>
               )}
             </div>
           </CardContent>
@@ -754,71 +891,107 @@ export default function StudentDashboardPage() {
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Upcoming Sessions */}
+          {/* Recent Activity */}
           <Card className="lg:col-span-1">
             <CardHeader>
-              <CardTitle className="text-base">Upcoming Sessions</CardTitle>
+              <CardTitle className="text-base">Recent Activity</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {data.upcoming_sessions.length > 0 ? (
-                  data.upcoming_sessions.map(session => (
-                    <div key={session.id} className="flex items-start gap-3">
-                      <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                        <Video className="w-4 h-4 text-purple-600" />
-                      </div>
+                {data.recent_activities.length > 0 ? (
+                  data.recent_activities.map(activity => (
+                    <div key={activity.id} className="flex items-start gap-3">
+                      <ActivityIcon type={activity.type} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{session.topic}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{session.group_name} · {session.mentor_name}</p>
+                        <p className="text-sm font-medium truncate">{activity.title}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{activity.description}</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <Clock className="w-3 h-3 text-gray-400" />
-                          <span className="text-xs text-gray-400">
-                            {format(new Date(session.start_time), 'MMM dd, hh:mm a')} · {session.duration} min
-                          </span>
+                          <span className="text-xs text-gray-400">{timeAgo(activity.timestamp)}</span>
+                          {activity.status && <StatusBadge status={activity.status} />}
+                          {activity.profit_loss !== undefined && (
+                            <span className={`text-xs font-medium ${activity.profit_loss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {activity.profit_loss >= 0 ? '+' : ''}{formatCurrency(activity.profit_loss)}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-gray-500 text-center py-4">No upcoming sessions</p>
+                  <p className="text-sm text-gray-500 text-center py-4">No recent activity</p>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Recent Signals */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="text-base">Recent Signals</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {data.recent_signals.length > 0 ? (
-                  data.recent_signals.map(signal => (
-                    <div key={signal.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <StatusBadge status={signal.type} />
-                        <div>
-                          <p className="font-medium">{signal.asset}</p>
-                          <p className="text-xs text-gray-500">Entry: {formatCurrency(signal.entry_price)}</p>
+          {/* Upcoming Sessions & Recent Signals */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Upcoming Sessions */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Upcoming Sessions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {data.upcoming_sessions.length > 0 ? (
+                    data.upcoming_sessions.map(session => (
+                      <div key={session.id} className="flex items-start gap-3">
+                        <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                          <Video className="w-4 h-4 text-purple-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{session.topic}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{session.group_name} · {session.mentor_name}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Clock className="w-3 h-3 text-gray-400" />
+                            <span className="text-xs text-gray-400">
+                              {format(new Date(session.start_time), 'MMM dd, hh:mm a')} · {session.duration} min
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        {signal.profit_loss !== undefined && (
-                          <p className={`text-sm font-bold ${signal.profit_loss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {signal.profit_loss >= 0 ? '+' : ''}{formatCurrency(signal.profit_loss)}
-                          </p>
-                        )}
-                        <StatusBadge status={signal.status} />
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-4">No upcoming sessions</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Recent Signals */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Recent Signals</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {data.recent_signals.length > 0 ? (
+                    data.recent_signals.slice(0, 3).map(signal => (
+                      <div key={signal.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <StatusBadge status={signal.type} />
+                          <div>
+                            <p className="font-medium">{signal.asset}</p>
+                            <p className="text-xs text-gray-500">Entry: {formatCurrency(signal.entry_price)}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          {signal.profit_loss !== undefined && (
+                            <p className={`text-sm font-bold ${signal.profit_loss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {signal.profit_loss >= 0 ? '+' : ''}{formatCurrency(signal.profit_loss)}
+                            </p>
+                          )}
+                          <StatusBadge status={signal.status} />
+                        </div>
                       </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-500 text-center py-4">No recent signals</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-4">No recent signals. Follow signals to see them here.</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Enrolled Groups & Recommended Mentors */}

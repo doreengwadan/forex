@@ -39,7 +39,8 @@ import {
   BarChart,
   DollarSign,
   Edit,
-  Trash2
+  Trash2,
+  Settings
 } from 'lucide-react'
 import { Input } from '../../components/ui/Input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/Select'
@@ -81,6 +82,14 @@ interface SignalStats {
   today_signals: number
 }
 
+interface PaginatedResponse {
+  data: any[]
+  current_page: number
+  last_page: number
+  total: number
+  per_page: number
+}
+
 const defaultStats: SignalStats = {
   total_signals: 0,
   active_signals: 0,
@@ -94,7 +103,7 @@ const defaultStats: SignalStats = {
 }
 
 const signalCategories = ['All', 'Crypto', 'Forex', 'Stocks', 'Commodities', 'Indices']
-const riskLevels = ['low', 'medium', 'high']
+const riskLevels = ['all', 'low', 'medium', 'high']
 const signalStatuses = ['all', 'published', 'pending', 'draft', 'archived']
 
 const getCategoryColor = (category: string) => {
@@ -107,6 +116,16 @@ const getCategoryColor = (category: string) => {
     'default': 'from-gray-500 to-gray-600'
   }
   return colors[category] || colors.default
+}
+
+// Safe array helper
+const safeArray = <T,>(data: any, defaultValue: T[] = []): T[] => {
+  if (Array.isArray(data)) return data
+  if (data?.data && Array.isArray(data.data)) return data.data
+  if (data?.signals && Array.isArray(data.signals)) return data.signals
+  if (data?.results && Array.isArray(data.results)) return data.results
+  if (data?.items && Array.isArray(data.items)) return data.items
+  return defaultValue
 }
 
 export default function SignalsPage() {
@@ -127,12 +146,15 @@ export default function SignalsPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'profit' | 'followers'>('newest')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [showFilters, setShowFilters] = useState(true)
 
   // Get token from localStorage
   const getToken = () => {
+    if (typeof window === 'undefined') return null
     const tokenSources = [
       localStorage.getItem('auth_token'),
       localStorage.getItem('token'),
+      localStorage.getItem('access_token')
     ]
     return tokenSources.find(token => token && token !== 'null' && token !== 'undefined') || null
   }
@@ -147,8 +169,18 @@ export default function SignalsPage() {
         return { signals: [], total: 0, last_page: 1 }
       }
 
+      // Build query params
+      const params = new URLSearchParams()
+      params.append('page', page.toString())
+      if (activeTab !== 'all') params.append('status', activeTab)
+      if (selectedCategory !== 'All') params.append('category', selectedCategory)
+      if (selectedRisk !== 'all') params.append('risk_level', selectedRisk)
+      if (searchQuery) params.append('search', searchQuery)
+      params.append('sort_by', sortBy)
+      params.append('sort_order', sortOrder)
+
       // Use regular user signals endpoint
-      const response = await fetch(`http://localhost:8000/api/signals?page=${page}`, {
+      const response = await fetch(`http://localhost:8000/api/signals?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -161,6 +193,8 @@ export default function SignalsPage() {
         if (response.status === 401) {
           setError('Session expired. Please login again.')
           localStorage.removeItem('auth_token')
+          localStorage.removeItem('token')
+          localStorage.removeItem('access_token')
           localStorage.removeItem('user_data')
           setTimeout(() => {
             window.location.href = '/login'
@@ -174,58 +208,60 @@ export default function SignalsPage() {
 
       const data = await response.json()
       
-      if (data.success && data.data) {
-        // Handle paginated response
-        return {
-          signals: data.data.map((signal: any) => ({
-            id: signal.id,
-            asset: signal.asset,
-            type: signal.type,
-            entry_price: parseFloat(signal.entry_price),
-            target_price: parseFloat(signal.target_price),
-            stop_loss: parseFloat(signal.stop_loss),
-            timeframe: signal.timeframe,
-            status: signal.status,
-            category: signal.category,
-            risk_level: signal.risk_level,
-            profit_loss: signal.profit_loss || '0.0%',
-            created_at: signal.created_at,
-            updated_at: signal.updated_at,
-            mentor_name: signal.mentor_name,
-            mentor_id: signal.mentor_id,
-            followers_count: signal.followers_count || 0,
-            is_following: signal.is_following || false
-          })),
-          total: data.total || data.data.length,
-          last_page: data.last_page || 1
+      // Handle different response structures
+      let signalsArray: any[] = []
+      let total = 0
+      let lastPage = 1
+
+      if (data.success) {
+        if (data.data && Array.isArray(data.data)) {
+          // Paginated response with data array
+          signalsArray = data.data
+          total = data.total || signalsArray.length
+          lastPage = data.last_page || Math.ceil(total / (data.per_page || 10))
+        } else if (data.signals && Array.isArray(data.signals)) {
+          // Response with signals array
+          signalsArray = data.signals
+          total = data.total || signalsArray.length
+          lastPage = data.last_page || 1
+        } else if (Array.isArray(data)) {
+          // Direct array response
+          signalsArray = data
+          total = signalsArray.length
+          lastPage = 1
         }
-      } else if (data.success && data.signals) {
-        // Handle non-paginated response
-        return {
-          signals: data.signals.map((signal: any) => ({
-            id: signal.id,
-            asset: signal.asset,
-            type: signal.type,
-            entry_price: parseFloat(signal.entry_price),
-            target_price: parseFloat(signal.target_price),
-            stop_loss: parseFloat(signal.stop_loss),
-            timeframe: signal.timeframe,
-            status: signal.status,
-            category: signal.category,
-            risk_level: signal.risk_level,
-            profit_loss: signal.profit_loss || '0.0%',
-            created_at: signal.created_at,
-            updated_at: signal.updated_at,
-            mentor_name: signal.mentor_name,
-            mentor_id: signal.mentor_id,
-            followers_count: signal.followers_count || 0,
-            is_following: signal.is_following || false
-          })),
-          total: data.signals.length,
-          last_page: 1
-        }
-      } else {
-        throw new Error(data.message || 'Failed to fetch signals')
+      } else if (Array.isArray(data)) {
+        // Direct array response without success wrapper
+        signalsArray = data
+        total = signalsArray.length
+        lastPage = 1
+      }
+
+      // Map to Signal interface
+      const mappedSignals = signalsArray.map((signal: any) => ({
+        id: signal.id,
+        asset: signal.asset || 'Unknown',
+        type: signal.type || 'buy',
+        entry_price: parseFloat(signal.entry_price) || 0,
+        target_price: parseFloat(signal.target_price) || 0,
+        stop_loss: parseFloat(signal.stop_loss) || 0,
+        timeframe: signal.timeframe || '1h',
+        status: signal.status || 'published',
+        category: signal.category || 'Crypto',
+        risk_level: signal.risk_level || 'medium',
+        profit_loss: signal.profit_loss || null,
+        created_at: signal.created_at || new Date().toISOString(),
+        updated_at: signal.updated_at || new Date().toISOString(),
+        mentor_name: signal.mentor_name || signal.mentor?.name,
+        mentor_id: signal.mentor_id || signal.mentor?.id,
+        followers_count: signal.followers_count || 0,
+        is_following: signal.is_following || false
+      }))
+
+      return {
+        signals: mappedSignals,
+        total: total,
+        last_page: lastPage
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred'
@@ -267,6 +303,19 @@ export default function SignalsPage() {
             avg_profit: data.stats.avg_profit || 0,
             today_signals: data.stats.today_signals || 0
           }
+        } else if (data.total_signals !== undefined) {
+          // Direct stats object
+          return {
+            total_signals: data.total_signals || 0,
+            active_signals: data.active_signals || 0,
+            pending_signals: data.pending_signals || 0,
+            completed_signals: data.completed_signals || 0,
+            stopped_signals: data.stopped_signals || 0,
+            total_following: data.total_following || 0,
+            success_rate: data.success_rate || 0,
+            avg_profit: data.avg_profit || 0,
+            today_signals: data.today_signals || 0
+          }
         }
       }
       return defaultStats
@@ -295,7 +344,8 @@ export default function SignalsPage() {
       })
 
       if (!response.ok) {
-        throw new Error(`Failed to follow signal: ${response.statusText}`)
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Failed to follow signal: ${response.statusText}`)
       }
 
       return { success: true }
@@ -325,7 +375,8 @@ export default function SignalsPage() {
       })
 
       if (!response.ok) {
-        throw new Error(`Failed to unfollow signal: ${response.statusText}`)
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Failed to unfollow signal: ${response.statusText}`)
       }
 
       return { success: true }
@@ -337,7 +388,7 @@ export default function SignalsPage() {
     }
   }
 
-  // Load data on component mount
+  // Load data on component mount and when filters change
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true)
@@ -347,7 +398,9 @@ export default function SignalsPage() {
       if (!token) {
         setError('Please login to access signals.')
         setIsLoading(false)
-        window.location.href = '/login'
+        setTimeout(() => {
+          window.location.href = '/login'
+        }, 2000)
         return
       }
       
@@ -366,8 +419,14 @@ export default function SignalsPage() {
         setIsLoading(false)
       }
     }
-    loadData()
-  }, [currentPage])
+    
+    // Debounce the API calls
+    const timeoutId = setTimeout(() => {
+      loadData()
+    }, 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [currentPage, activeTab, selectedCategory, selectedRisk, searchQuery, sortBy, sortOrder])
 
   // Refresh data
   const handleRefresh = async () => {
@@ -422,6 +481,10 @@ export default function SignalsPage() {
           return sortOrder === 'desc' 
             ? new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
             : new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        case 'oldest':
+          return sortOrder === 'desc'
+            ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         case 'profit':
           const aProfit = parseFloat(a.profit_loss?.replace('%', '') || '0')
           const bProfit = parseFloat(b.profit_loss?.replace('%', '') || '0')
@@ -519,21 +582,26 @@ export default function SignalsPage() {
   }
 
   const getTimeAgo = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMs / 3600000)
-    const diffDays = Math.floor(diffMs / 86400000)
-    
-    if (diffMins < 60) return `${diffMins}m ago`
-    if (diffHours < 24) return `${diffHours}h ago`
-    return `${diffDays}d ago`
+    try {
+      const date = new Date(dateString)
+      const now = new Date()
+      const diffMs = now.getTime() - date.getTime()
+      const diffMins = Math.floor(diffMs / 60000)
+      const diffHours = Math.floor(diffMs / 3600000)
+      const diffDays = Math.floor(diffMs / 86400000)
+      
+      if (diffMins < 60) return `${diffMins}m ago`
+      if (diffHours < 24) return `${diffHours}h ago`
+      return `${diffDays}d ago`
+    } catch {
+      return 'Unknown'
+    }
   }
 
   // Pagination
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   if (isLoading) {
@@ -590,101 +658,30 @@ export default function SignalsPage() {
           </h1>
           <p className="text-gray-600 mt-2">Follow expert trading signals from top mentors</p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <Button 
-            variant="outline" 
-            className="gap-2"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
+        
+     
       </div>
 
-      {/* Stats Cards - User Version */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="border-0 shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-1 bg-gradient-to-br from-white to-emerald-50/30 border border-emerald-100/50">
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-start">
+      
+      {/* Filters Section */}
+      {showFilters && (
+        <Card>
+          <CardContent className="p-4">
+            <div className=" md:grid-cols-5 gap-4">
               <div>
-                <p className="text-sm font-medium text-gray-600">Published Signals</p>
-                <p className="text-3xl font-bold mt-2 text-gray-900">
-                  {stats.active_signals || 0}
-                </p>
-                <div className="flex items-center mt-1">
-                  <ArrowUpRight className="w-4 h-4 text-green-500" />
-                  <span className="text-sm text-green-600 ml-1">Live Now</span>
-                </div>
+                <Label>Search</Label>
+                <Input
+                  placeholder="Search by asset, category, mentor..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="mt-1"
+                />
               </div>
-              <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 shadow-lg">
-                <Eye className="w-6 h-6 text-emerald-600" />
-              </div>
+              
             </div>
           </CardContent>
         </Card>
-
-        <Card className="border-0 shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-1 bg-gradient-to-br from-white to-blue-50/30 border border-blue-100/50">
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Following</p>
-                <p className="text-3xl font-bold mt-2 text-gray-900">
-                  {stats.total_following || 0}
-                </p>
-                <div className="flex items-center mt-1">
-                  <Users className="w-4 h-4 text-blue-500" />
-                  <span className="text-sm text-blue-600 ml-1">Signals</span>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 shadow-lg">
-                <Users className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-1 bg-gradient-to-br from-white to-amber-50/30 border border-amber-100/50">
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Success Rate</p>
-                <p className="text-3xl font-bold mt-2 text-gray-900">
-                  {stats.success_rate || 0}%
-                </p>
-                <div className="flex items-center mt-1">
-                  <Target className="w-4 h-4 text-amber-500" />
-                  <span className="text-sm text-amber-600 ml-1">Platform average</span>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 shadow-lg">
-                <Target className="w-6 h-6 text-amber-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-1 bg-gradient-to-br from-white to-purple-50/30 border border-purple-100/50">
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Avg Profit</p>
-                <p className="text-3xl font-bold mt-2 text-gray-900">
-                  {stats.avg_profit || 0}%
-                </p>
-                <div className="flex items-center mt-1">
-                  <TrendingUp className="w-4 h-4 text-purple-500" />
-                  <span className="text-sm text-purple-600 ml-1">Per signal</span>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-gradient-to-br from-purple-100 to-pink-100 shadow-lg">
-                <TrendingUp className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      )}
 
       {/* Bulk Actions Bar */}
       {showBulkActions && (
@@ -727,353 +724,256 @@ export default function SignalsPage() {
         </div>
       )}
 
-      {/* Filters and Content */}
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Filters Sidebar */}
-        <Card className="lg:w-1/4 border-0 shadow-xl bg-gradient-to-b from-white to-gray-50/50">
-          <CardHeader className="pb-4 border-b border-gray-200/50">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Filter className="w-5 h-5 text-indigo-600" />
-              Filter Signals
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-6">
+      {/* Main Content */}
+      <Card className="border-0 shadow-xl bg-gradient-to-b from-white to-gray-50/50 overflow-hidden">
+        <CardHeader className="border-b border-gray-200/50">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <Label htmlFor="search" className="mb-2 block text-sm font-medium text-gray-700">Search Signals</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  id="search"
-                  placeholder="BTC, Crypto, Mentor..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 border-2 border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 transition-all"
-                />
-              </div>
+              <CardTitle className="text-xl bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                Available Signals
+              </CardTitle>
+              <CardDescription className="mt-2">
+                <span className="font-semibold text-gray-900">{filteredSignals.length}</span> signals • 
+                <span className="ml-2 text-green-600 font-medium">{(stats.success_rate || 0)}% success rate</span>
+              </CardDescription>
             </div>
-
-            <div>
-              <Label className="mb-2 block text-sm font-medium text-gray-700">Category</Label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="border-2 border-gray-300 focus:border-indigo-500">
-                  <SelectValue placeholder="All Categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  {signalCategories.map(category => (
-                    <SelectItem key={category} value={category} className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${getCategoryColor(category)}`}></div>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="mb-2 block text-sm font-medium text-gray-700">Risk Level</Label>
-              <Select value={selectedRisk} onValueChange={setSelectedRisk}>
-                <SelectTrigger className="border-2 border-gray-300 focus:border-indigo-500">
-                  <SelectValue placeholder="All Risk Levels" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Levels</SelectItem>
-                  {riskLevels.map(level => (
-                    <SelectItem key={level} value={level}>
-                      <div className="flex items-center gap-2">
-                        <Shield className={`w-3 h-3 ${
-                          level === 'low' ? 'text-emerald-500' :
-                          level === 'medium' ? 'text-amber-500' : 'text-rose-500'
-                        }`} />
-                        {level.charAt(0).toUpperCase() + level.slice(1)}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="mb-2 block text-sm font-medium text-gray-700">Sort By</Label>
-              <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
-                <SelectTrigger className="border-2 border-gray-300 focus:border-indigo-500">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="newest">Newest First</SelectItem>
-                  <SelectItem value="profit">Highest Profit</SelectItem>
-                  <SelectItem value="followers">Most Followed</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex items-center gap-2">
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="mt-2 w-full gap-2"
-                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                onClick={handleSelectAll}
+                className="gap-2 border-2 border-gray-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all"
               >
-                {sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+                {selectedSignals.length === filteredSignals.length && filteredSignals.length > 0 ? (
+                  <>
+                    <XCircle className="w-4 h-4" />
+                    Deselect All
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Select All
+                  </>
+                )}
               </Button>
             </div>
-
-            <div className="space-y-4 pt-4 border-t border-gray-200/50">
-              <Label className="block text-sm font-medium text-gray-700">Quick Actions</Label>
-              <div className="space-y-2">
-                <Button variant="outline" className="w-full justify-start gap-2 border-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-700 transition-all">
-                  <Download className="w-4 h-4" />
-                  Export List
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Main Content */}
-        <Card className="lg:w-3/4 border-0 shadow-xl bg-gradient-to-b from-white to-gray-50/50 overflow-hidden">
-          <CardHeader className="border-b border-gray-200/50">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div>
-                <CardTitle className="text-xl bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                  Available Signals
-                </CardTitle>
-                <CardDescription className="mt-2">
-                  <span className="font-semibold text-gray-900">{filteredSignals.length}</span> signals • 
-                  <span className="ml-2 text-green-600 font-medium">{(stats.success_rate || 0)}% success rate</span>
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSelectAll}
-                  className="gap-2 border-2 border-gray-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all"
-                >
-                  {selectedSignals.length === filteredSignals.length ? (
-                    <>
-                      <XCircle className="w-4 h-4" />
-                      Deselect All
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="w-4 h-4" />
-                      Select All
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gradient-to-r from-gray-50 to-gray-100/50">
-                    <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700 w-12">
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gradient-to-r from-gray-50 to-gray-100/50">
+                  <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700 w-12">
+                    <input
+                      type="checkbox"
+                      checked={selectedSignals.length === filteredSignals.length && filteredSignals.length > 0}
+                      onChange={handleSelectAll}
+                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                  </th>
+                  <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Asset & Details</th>
+                  <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Mentor</th>
+                  <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Signal</th>
+                  <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Prices</th>
+                  <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Status</th>
+                  <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">P/L</th>
+                  <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200/50">
+                {filteredSignals.map((signal) => (
+                  <tr key={signal.id} className="hover:bg-gradient-to-r hover:from-gray-50/50 hover:to-gray-100/30 transition-colors group">
+                    <td className="py-5 px-6">
                       <input
                         type="checkbox"
-                        checked={selectedSignals.length === filteredSignals.length && filteredSignals.length > 0}
-                        onChange={handleSelectAll}
+                        checked={selectedSignals.includes(signal.id)}
+                        onChange={() => handleSignalSelect(signal.id)}
                         className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                       />
-                    </th>
-                    <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Asset & Details</th>
-                    <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Mentor</th>
-                    <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Signal</th>
-                    <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Prices</th>
-                    <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Status</th>
-                    <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">P/L</th>
-                    <th className="py-4 px-6 text-left text-sm font-semibold text-gray-700">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200/50">
-                  {filteredSignals.map((signal) => (
-                    <tr key={signal.id} className="hover:bg-gradient-to-r hover:from-gray-50/50 hover:to-gray-100/30 transition-colors group">
-                      <td className="py-5 px-6">
-                        <input
-                          type="checkbox"
-                          checked={selectedSignals.includes(signal.id)}
-                          onChange={() => handleSignalSelect(signal.id)}
-                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                      </td>
-                      <td className="py-5 px-6">
+                    </td>
+                    <td className="py-5 px-6">
+                      <div>
+                        <div className="font-bold text-gray-900 text-lg">{signal.asset}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-xs font-medium px-2 py-1 rounded-full bg-gradient-to-r ${getCategoryColor(signal.category)} text-white`}>
+                            {signal.category}
+                          </span>
+                          <span className="text-xs text-gray-500 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {signal.timeframe}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          {getTimeAgo(signal.created_at)}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-5 px-6">
+                      {signal.mentor_name ? (
                         <div>
-                          <div className="font-bold text-gray-900 text-lg">{signal.asset}</div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className={`text-xs font-medium px-2 py-1 rounded-full bg-gradient-to-r ${getCategoryColor(signal.category)} text-white`}>
-                              {signal.category}
-                            </span>
-                            <span className="text-xs text-gray-500 flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {signal.timeframe}
-                            </span>
-                          </div>
-                          <div className="text-xs text-gray-400 mt-1">
-                            {getTimeAgo(signal.created_at)}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-5 px-6">
-                        {signal.mentor_name ? (
-                          <div>
-                            <div className="font-medium text-gray-900">{signal.mentor_name}</div>
-                            <div className="text-xs text-gray-500">Expert Mentor</div>
-                            {signal.followers_count !== undefined && (
-                              <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                                <Users className="w-3 h-3" />
-                                {signal.followers_count} follower{signal.followers_count !== 1 ? 's' : ''}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="text-gray-400 italic">Unknown</div>
-                        )}
-                      </td>
-                      <td className="py-5 px-6">
-                        <div className="space-y-2">
-                          <Badge className={`${getTypeColor(signal.type)} font-bold shadow-lg`}>
-                            {signal.type === 'buy' ? 
-                              <ArrowUpRight className="w-4 h-4 mr-1" /> : 
-                              <ArrowDownRight className="w-4 h-4 mr-1" />
-                            }
-                            {signal.type.toUpperCase()}
-                          </Badge>
-                          <Badge variant="outline" className={`${getRiskColor(signal.risk_level)}`}>
-                            <Shield className="w-3 h-3 mr-1" />
-                            {signal.risk_level.charAt(0).toUpperCase() + signal.risk_level.slice(1)}
-                          </Badge>
-                        </div>
-                      </td>
-                      <td className="py-5 px-6">
-                        <div className="space-y-1 text-sm">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-600">Entry:</span>
-                            <span className="font-bold text-gray-900">
-                              ${signal.entry_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <ArrowUpRight className="w-3 h-3 text-emerald-500" />
-                            <span className="font-bold text-emerald-600">
-                              ${signal.target_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-red-600">Stop:</span>
-                            <span className="font-bold text-red-600">
-                              ${signal.stop_loss.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-5 px-6">
-                        <div className="space-y-2">
-                          <Badge className={`${getStatusColor(signal.status)} font-bold`}>
-                            {signal.status === 'published' && <Globe className="w-3 h-3 mr-1" />}
-                            {signal.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
-                            {signal.status === 'draft' && <Edit className="w-3 h-3 mr-1" />}
-                            {signal.status === 'archived' && <Archive className="w-3 h-3 mr-1" />}
-                            {signal.status.charAt(0).toUpperCase() + signal.status.slice(1)}
-                          </Badge>
-                          {signal.is_following && (
-                            <div className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-                              <CheckCircle className="w-3 h-3" />
-                              Following
+                          <div className="font-medium text-gray-900">{signal.mentor_name}</div>
+                          <div className="text-xs text-gray-500">Expert Mentor</div>
+                          {signal.followers_count !== undefined && (
+                            <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                              <Users className="w-3 h-3" />
+                              {signal.followers_count} follower{signal.followers_count !== 1 ? 's' : ''}
                             </div>
                           )}
                         </div>
-                      </td>
-                      <td className="py-5 px-6">
-                        <div className={`text-lg font-bold ${getProfitLossColor(signal.profit_loss)}`}>
-                          {signal.profit_loss || '0.0%'}
+                      ) : (
+                        <div className="text-gray-400 italic">Unknown</div>
+                      )}
+                    </td>
+                    <td className="py-5 px-6">
+                      <div className="space-y-2">
+                        <Badge className={`${getTypeColor(signal.type)} font-bold shadow-lg`}>
+                          {signal.type === 'buy' ? 
+                            <ArrowUpRight className="w-4 h-4 mr-1" /> : 
+                            <ArrowDownRight className="w-4 h-4 mr-1" />
+                          }
+                          {signal.type.toUpperCase()}
+                        </Badge>
+                        <Badge variant="outline" className={`${getRiskColor(signal.risk_level)}`}>
+                          <Shield className="w-3 h-3 mr-1" />
+                          {signal.risk_level.charAt(0).toUpperCase() + signal.risk_level.slice(1)}
+                        </Badge>
+                      </div>
+                    </td>
+                    <td className="py-5 px-6">
+                      <div className="space-y-1 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-600">Entry:</span>
+                          <span className="font-bold text-gray-900">
+                            ${signal.entry_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
                         </div>
-                      </td>
-                      <td className="py-5 px-6">
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="gap-1 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 rounded-lg transition-all"
-                            onClick={() => setViewDetails(signal)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={signal.is_following ? "outline" : "default"}
-                            className={`gap-1 ${
-                              signal.is_following 
-                                ? 'border-2 border-gray-300 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700' 
-                                : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg'
-                            }`}
-                            onClick={() => {
-                              if (signal.is_following) {
-                                unfollowSignal(signal.id).then(handleRefresh)
-                              } else {
-                                followSignal(signal.id).then(handleRefresh)
-                              }
-                            }}
-                          >
-                            {signal.is_following ? 'Unfollow' : 'Follow'}
-                          </Button>
+                        <div className="flex items-center gap-2">
+                          <ArrowUpRight className="w-3 h-3 text-emerald-500" />
+                          <span className="font-bold text-emerald-600">
+                            ${signal.target_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-red-600">Stop:</span>
+                          <span className="font-bold text-red-600">
+                            ${signal.stop_loss.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-5 px-6">
+                      <div className="space-y-2">
+                        <Badge className={`${getStatusColor(signal.status)} font-bold`}>
+                          {signal.status === 'published' && <Globe className="w-3 h-3 mr-1" />}
+                          {signal.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
+                          {signal.status === 'draft' && <Edit className="w-3 h-3 mr-1" />}
+                          {signal.status === 'archived' && <Archive className="w-3 h-3 mr-1" />}
+                          {signal.status.charAt(0).toUpperCase() + signal.status.slice(1)}
+                        </Badge>
+                        {signal.is_following && (
+                          <div className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            Following
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-5 px-6">
+                      <div className={`text-lg font-bold ${getProfitLossColor(signal.profit_loss)}`}>
+                        {signal.profit_loss || '0.0%'}
+                      </div>
+                    </td>
+                    <td className="py-5 px-6">
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 rounded-lg transition-all"
+                          onClick={() => setViewDetails(signal)}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={signal.is_following ? "outline" : "default"}
+                          className={`gap-1 ${
+                            signal.is_following 
+                              ? 'border-2 border-gray-300 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700' 
+                              : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg'
+                          }`}
+                          onClick={() => {
+                            if (signal.is_following) {
+                              unfollowSignal(signal.id).then(() => {
+                                handleRefresh()
+                              })
+                            } else {
+                              followSignal(signal.id).then(() => {
+                                handleRefresh()
+                              })
+                            }
+                          }}
+                        >
+                          {signal.is_following ? 'Unfollow' : 'Follow'}
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
-              {filteredSignals.length === 0 && (
-                <div className="text-center py-16">
-                  <div className="mx-auto w-20 h-20 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-6">
-                    <Filter className="w-10 h-10 text-gray-400" />
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">No signals found</h3>
-                  <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                    Try adjusting your filters or check back later for new signals
-                  </p>
-                  <Button
-                    variant="outline"
-                    className="gap-2 border-2 border-gray-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all"
-                    onClick={handleRefresh}
-                  >
-                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                    Refresh Signals
-                  </Button>
+            {filteredSignals.length === 0 && (
+              <div className="text-center py-16">
+                <div className="mx-auto w-20 h-20 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-6">
+                  <Filter className="w-10 h-10 text-gray-400" />
                 </div>
-              )}
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200/50">
-                <div className="text-sm text-gray-700">
-                  Page {currentPage} of {totalPages}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1}
-                    className="border-2 border-gray-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all"
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                    className="border-2 border-gray-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all"
-                  >
-                    Next
-                  </Button>
-                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">No signals found</h3>
+                <p className="text-gray-600 mb-8 max-w-md mx-auto">
+                  Try adjusting your filters or check back later for new signals
+                </p>
+                <Button
+                  variant="outline"
+                  className="gap-2 border-2 border-gray-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all"
+                  onClick={handleRefresh}
+                >
+                  <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  Refresh Signals
+                </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200/50">
+              <div className="text-sm text-gray-700">
+                Page {currentPage} of {totalPages}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="border-2 border-gray-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all"
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="border-2 border-gray-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all"
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Signal Details Modal */}
       {viewDetails && (
